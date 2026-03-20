@@ -1,0 +1,31 @@
+# System
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+.env
+
+# Application Data (Settings and Session)
+*.session
+*.session-journal
+downloads.db
+settings.ini
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project specific
+downloads/
+exports/
+dist/
+build/
+*.spec
