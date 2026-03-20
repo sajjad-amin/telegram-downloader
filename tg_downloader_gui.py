@@ -477,7 +477,7 @@ class TelegramDownloaderApp(QWidget):
         # We also use DontUseNativeDialog on Mac to ensure the option is strictly respected
         p, _ = QFileDialog.getSaveFileName(self, "Save / Resume File", 
                                            os.path.join(self.settings.value("last_download_dir", HOME_DIR), f"DL_{msg.id}{ex}"),
-                                           options=QFileDialog.Option.DontConfirmOverwrite | QFileDialog.Option.DontUseNativeDialog)
+                                           options=QFileDialog.Option.DontConfirmOverwrite)
         if p: 
             self.current_message, self.current_file_path = msg, p
             self.btn_start_download.setEnabled(True)
