@@ -8,7 +8,11 @@ class TelegramDownloader:
         self.session_path = session_path
         self.api_id = api_id
         self.api_hash = api_hash
-        self.client = TelegramClient(session_path, int(api_id), api_hash, loop=loop)
+        try:
+            aid = int(api_id) if api_id else 0
+        except ValueError:
+            aid = 0
+        self.client = TelegramClient(session_path, aid, api_hash, loop=loop)
         try:
             self.loop = loop or asyncio.get_event_loop()
         except RuntimeError:

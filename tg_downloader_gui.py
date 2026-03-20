@@ -41,7 +41,7 @@ class TelegramDownloaderApp(QWidget):
         self.signals = WorkerSignals()
         self.api_id = self.settings.value("API_ID", "")
         self.api_hash = self.settings.value("API_HASH", "")
-        self.downloader = TelegramDownloader(SESSION_FILE, self.api_id, self.api_hash, self.loop)
+        self.downloader = None # Initialized in initialize_client
         
         self.start_time, self.initial_bytes = None, 0
         self.is_fetching, self.is_fetch_paused = False, False
