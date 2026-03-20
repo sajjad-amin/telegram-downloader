@@ -9,7 +9,11 @@ class TelegramDownloader:
         self.api_id = api_id
         self.api_hash = api_hash
         self.client = TelegramClient(session_path, int(api_id), api_hash, loop=loop)
-        self.loop = loop or asyncio.get_event_loop()
+        try:
+            self.loop = loop or asyncio.get_event_loop()
+        except RuntimeError:
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
 
     async def connect(self):
         await self.client.connect()

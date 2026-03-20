@@ -31,7 +31,11 @@ DB_FILE = os.path.join(CONFIG_DIR, "downloads.db")
 class TelegramDownloaderApp(QWidget):
     def __init__(self, loop=None):
         super().__init__()
-        self.loop = loop or asyncio.get_event_loop()
+        try:
+            self.loop = loop or asyncio.get_event_loop()
+        except RuntimeError:
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
         self.settings = QSettings(SETTINGS_FILE, QSettings.Format.IniFormat)
         self.db = Database(DB_FILE)
         self.signals = WorkerSignals()
