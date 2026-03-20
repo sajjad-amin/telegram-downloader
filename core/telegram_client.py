@@ -30,14 +30,20 @@ class TelegramDownloader:
         """
         Downloads media with support for pause and cancel.
         """
-        total_size = message.document.size if hasattr(message, 'document') and message.document else 0
+        # Accurate Total Size Detection
+        total_size = 0
+        if message.document: total_size = message.document.size
+        elif message.photo: total_size = message.photo.sizes[-1].size
+        elif message.audio: total_size = message.audio.size
+        elif message.video: total_size = message.video.size
+        
         downloaded_bytes = 0
-
-        # Check for existing partial file to resume
         if os.path.exists(file_path):
             downloaded_bytes = os.path.getsize(file_path)
 
-        if total_size and downloaded_bytes >= total_size:
+        # If file is already fully downloaded
+        if total_size > 0 and downloaded_bytes >= total_size:
+            if progress_callback: await progress_callback(total_size, total_size)
             return file_path
 
         # Determine mode: 'ab' if resuming, 'wb' if starting fresh
@@ -45,9 +51,14 @@ class TelegramDownloader:
 
         with open(file_path, mode) as f:
             async for chunk in self.client.iter_download(message.media, offset=downloaded_bytes):
-                # Check for pause or cancel
-                if (pause_flag and pause_flag()) or (cancel_flag and cancel_flag()):
+                # Check for cancel
+                if cancel_flag and cancel_flag():
                     break
+                
+                # Handle Pause: wait here instead of breaking
+                while pause_flag and pause_flag():
+                    if cancel_flag and cancel_flag(): break
+                    await asyncio.sleep(0.5)
 
                 f.write(chunk)
                 downloaded_bytes += len(chunk)

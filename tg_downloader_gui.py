@@ -9,7 +9,8 @@ from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QL
                              QLineEdit, QPushButton, QProgressBar, QFileDialog,
                              QInputDialog, QMessageBox, QDialog, QTabWidget, QTextEdit,
                              QTableWidget, QTableWidgetItem, QCheckBox, QHeaderView, QComboBox)
-from PyQt6.QtCore import Qt, QSettings, pyqtSignal
+from PyQt6.QtCore import Qt, QSettings, pyqtSignal, QUrl
+from PyQt6.QtGui import QDesktopServices
 
 from core.telegram_client import TelegramDownloader
 from core.utils import parse_telegram_link, parse_channel_entity
@@ -28,20 +29,24 @@ DB_FILE = os.path.join(CONFIG_DIR, "downloads.db")
 
 
 class TelegramDownloaderApp(QWidget):
-    def __init__(self):
+    def __init__(self, loop=None):
         super().__init__()
+        self.loop = loop or asyncio.get_event_loop()
+        self.settings = QSettings(SETTINGS_FILE, QSettings.Format.IniFormat)
         self.db = Database(DB_FILE)
         self.signals = WorkerSignals()
-        self.settings = QSettings(SETTINGS_FILE, QSettings.Format.IniFormat)
-        self.api_id, self.api_hash = self.settings.value("API_ID"), self.settings.value("API_HASH")
-
-        self.downloader = None
-        self.loop = asyncio.new_event_loop()
+        self.api_id = self.settings.value("API_ID", "")
+        self.api_hash = self.settings.value("API_HASH", "")
+        self.downloader = TelegramDownloader(SESSION_FILE, self.api_id, self.api_hash, self.loop)
+        
         self.start_time, self.initial_bytes = None, 0
+        self.is_fetching, self.is_fetch_paused = False, False
+        self.is_single_paused = False # Independent Single Pause
+        self.is_bulk_running, self.is_bulk_paused = False, False # Independent Bulk Pause
+        
         self.current_message, self.current_file_path = None, None
         
         self.page_size, self.current_page = 100, 0
-        self.is_bulk_running, self.is_fetching, self.is_fetch_paused = False, False, False
         self.selected_ids_memory, self.max_selection = [], 100
 
         self.init_ui()
@@ -92,13 +97,36 @@ class TelegramDownloaderApp(QWidget):
         main_layout = QVBoxLayout(); main_layout.setContentsMargins(20, 20, 20, 20); self.tabs = QTabWidget()
         
         self.tab_single = QWidget(); single_layout = QVBoxLayout(self.tab_single)
-        self.link_entry = QLineEdit(); self.link_entry.setPlaceholderText("Paste Telegram message link here..."); single_layout.addWidget(self.link_entry)
+        self.link_entry = QLineEdit(); self.link_entry.setPlaceholderText("Paste Telegram message link here...")
+        self.link_entry.setText(self.settings.value("last_single_url", ""))
+        single_layout.addWidget(self.link_entry)
         btn_row = QHBoxLayout(); self.btn_select_location = QPushButton("Select Destination"); self.btn_start_download = QPushButton("Start Download"); self.btn_pause_resume = QPushButton("Pause/Resume")
-        self.btn_select_location.setEnabled(False); self.btn_start_download.setEnabled(False); self.btn_pause_resume.setEnabled(False)
+        
+        # Enable start button if we have a saved path
+        last_fp = self.settings.value("last_single_fp", "")
+        if last_fp and os.path.exists(os.path.dirname(last_fp)):
+            self.current_file_path = last_fp
+            self.btn_start_download.setEnabled(True)
+            self.single_status_label = QLabel(f"Resume: {os.path.basename(last_fp)}") if hasattr(self, 'single_status_label') else None # Handled below
+        
+        self.btn_select_location.setEnabled(True) # Always allow choosing new location
+        self.btn_pause_resume.setEnabled(False)
         btn_row.addWidget(self.btn_select_location); btn_row.addWidget(self.btn_start_download); btn_row.addWidget(self.btn_pause_resume)
         self.btn_select_location.clicked.connect(self.on_select_location_click); self.btn_start_download.clicked.connect(self.on_start_download_click); self.btn_pause_resume.clicked.connect(self.on_pause_resume_click)
-        single_layout.addLayout(btn_row); single_layout.addStretch()
-
+        single_layout.addLayout(btn_row)
+        
+        # Internal Single Tab Status Bar
+        self.single_progress_bar = QProgressBar(); self.single_progress_bar.setVisible(False)
+        self.single_status_label = QLabel("Ready to download.")
+        if last_fp: self.single_status_label.setText(f"Last used: {os.path.basename(last_fp)}")
+        self.single_status_label.setWordWrap(True)
+        
+        self.btn_open_folder_single = QPushButton("📂 Open Folder"); self.btn_open_folder_single.setObjectName("grey_btn"); self.btn_open_folder_single.setVisible(False)
+        self.btn_open_folder_single.clicked.connect(lambda: self.open_folder(os.path.dirname(self.current_file_path)))
+        
+        single_layout.addStretch()
+        single_layout.addWidget(self.single_progress_bar); 
+        status_row_s = QHBoxLayout(); status_row_s.addWidget(self.single_status_label, 1); status_row_s.addWidget(self.btn_open_folder_single); single_layout.addLayout(status_row_s)
         self.tab_bulk = QWidget(); bulk_layout = QVBoxLayout(self.tab_bulk)
         chan_row = QHBoxLayout(); chan_row.addWidget(QLabel("Channel Source:")); self.bulk_channel_input = QLineEdit()
         self.bulk_channel_input.setText(self.settings.value("last_channel_link", "")); self.bulk_channel_input.textChanged.connect(self.update_fetch_button_text); chan_row.addWidget(self.bulk_channel_input, 1); bulk_layout.addLayout(chan_row)
@@ -134,11 +162,29 @@ class TelegramDownloaderApp(QWidget):
         foot_row = QHBoxLayout(); self.btn_bulk_f = QPushButton("Set Destination"); self.btn_bulk_f.clicked.connect(self.on_select_bulk_location); self.btn_bulk_s = QPushButton("Start Download"); self.btn_bulk_s.setEnabled(False); self.btn_bulk_s.clicked.connect(self.on_start_bulk_download); self.btn_bulk_p = QPushButton("Pause/Resume"); self.btn_bulk_p.setEnabled(False); self.btn_bulk_p.clicked.connect(self.on_stop_bulk_download)
         btn_del = QPushButton("Delete Selected"); btn_del.clicked.connect(self.on_delete_selected); btn_exp = QPushButton("Export JSON"); btn_exp.clicked.connect(self.on_export_list); btn_imp = QPushButton("Import JSON"); btn_imp.clicked.connect(self.on_import_list); btn_wipe = QPushButton("Clear Database"); btn_wipe.clicked.connect(self.on_clear_bulk_list)
         foot_row.addWidget(self.btn_bulk_f); foot_row.addWidget(self.btn_bulk_s); foot_row.addWidget(self.btn_bulk_p); foot_row.addStretch(); foot_row.addWidget(btn_del); foot_row.addWidget(btn_exp); foot_row.addWidget(btn_imp); foot_row.addWidget(btn_wipe); bulk_layout.addLayout(foot_row)
-
-        self.tabs.addTab(self.tab_single, "Single"); self.tabs.addTab(self.tab_bulk, "Bulk"); main_layout.addWidget(self.tabs); self.progress_bar = QProgressBar(); main_layout.addWidget(self.progress_bar); self.lbl_status = QLabel("Standby..."); self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter); main_layout.addWidget(self.lbl_status); self.setLayout(main_layout)
+        
+        # Internal Bulk Tab Status Bar
+        self.bulk_progress_bar = QProgressBar(); self.bulk_progress_bar.setVisible(False)
+        self.bulk_status_label = QLabel("Scan a channel to start.")
+        
+        self.btn_open_folder_bulk = QPushButton("📂 Open Folder"); self.btn_open_folder_bulk.setObjectName("grey_btn"); self.btn_open_folder_bulk.setVisible(False)
+        self.btn_open_folder_bulk.clicked.connect(lambda: self.open_folder(self.settings.value("last_bulk_dir", "")))
+        
+        bulk_layout.addWidget(self.bulk_progress_bar)
+        status_row_b = QHBoxLayout(); status_row_b.addWidget(self.bulk_status_label, 1); status_row_b.addWidget(self.btn_open_folder_bulk); bulk_layout.addLayout(status_row_b)
+        self.tabs.addTab(self.tab_single, "Single"); self.tabs.addTab(self.tab_bulk, "Bulk")
+        main_layout.addWidget(self.tabs)
+        self.setLayout(main_layout)
 
     def connect_signals(self):
-        self.signals.status.connect(self.update_status); self.signals.progress.connect(self.update_progress); self.signals.ask_phone.connect(self.prompt_phone); self.signals.ask_code.connect(self.prompt_code); self.signals.ask_location_success.connect(self.on_ask_location_success); self.signals.success.connect(self.on_success); self.signals.error.connect(self.on_error); self.signals.ready.connect(self.on_ready); self.signals.bulk_list_fetched.connect(self.on_bulk_list_fetched); self.signals.bulk_table_refresh.connect(self.load_bulk_list_to_table)
+        # Mapping signals to their respective tab widgets
+        self.signals.single_progress.connect(lambda p, t: (self.single_progress_bar.setValue(int(p)), self.single_progress_bar.setVisible(True), self.single_status_label.setText(t)))
+        self.signals.single_status.connect(lambda t, c: (self.single_status_label.setText(t), self.single_status_label.setStyleSheet(f"color: {c};")))
+        
+        self.signals.bulk_progress.connect(lambda p, t: (self.bulk_progress_bar.setValue(int(p)), self.bulk_progress_bar.setVisible(True), self.bulk_status_label.setText(t)))
+        self.signals.bulk_status.connect(lambda t, c: (self.bulk_status_label.setText(t), self.bulk_status_label.setStyleSheet(f"color: {c};")))
+        
+        self.signals.ask_phone.connect(self.prompt_phone); self.signals.ask_code.connect(self.prompt_code); self.signals.ask_location_success.connect(self.on_ask_location_success); self.signals.success.connect(self.on_success); self.signals.error.connect(self.on_error); self.signals.ready.connect(self.on_ready); self.signals.bulk_list_fetched.connect(self.on_bulk_list_fetched); self.signals.bulk_table_refresh.connect(self.load_bulk_list_to_table)
 
     def run_asyncio_loop(self): asyncio.set_event_loop(self.loop); self.initialize_client(); self.loop.run_forever()
     def initialize_client(self):
@@ -150,8 +196,12 @@ class TelegramDownloaderApp(QWidget):
             if not await self.downloader.is_authorized(): self.signals.ask_phone.emit()
             else: self.signals.ready.emit()
         except Exception as e: self.signals.error.emit(str(e))
-    def on_ready(self): self.update_status("Connected", "#34c759"); self.btn_select_location.setEnabled(True); self.btn_fetch_new.setEnabled(True); self.btn_fetch_old.setEnabled(True); self.load_bulk_list_to_table(); self.update_fetch_button_text()
-    def update_status(self, text, color="#ffffff"): self.lbl_status.setText(text); self.lbl_status.setStyleSheet(f"color: {color}; font-weight: bold;")
+    def on_ready(self): 
+        self.update_status("Connected", "#34c759")
+        self.btn_select_location.setEnabled(True); self.btn_fetch_new.setEnabled(True); self.btn_fetch_old.setEnabled(True); self.load_bulk_list_to_table(); self.update_fetch_button_text()
+    def update_status(self, text, color="#ffffff"):
+        self.signals.single_status.emit(text, color)
+        self.signals.bulk_status.emit(text, color)
 
     def update_fetch_button_text(self):
         lk = self.bulk_channel_input.text().strip(); ent, _ = parse_channel_entity(lk)
@@ -228,7 +278,10 @@ class TelegramDownloaderApp(QWidget):
             elif status == 'failed': s.setText("❌ Fail"); s.setBackground(Qt.GlobalColor.darkRed)
             else: s.setText("⏳ Wait")
             self.bulk_table.setItem(r, 5, s)
-        self.update_pagination_bar(tot_fil); self.btn_bulk_s.setEnabled(tot_fil > 0)
+        self.update_pagination_bar(tot_fil)
+        if not self.is_bulk_running:
+            loc = self.settings.value("last_bulk_dir", None)
+            self.btn_bulk_s.setEnabled(tot_fil > 0 and bool(loc))
         
         # Restore scroll
         v_bar.setValue(scroll_val)
@@ -306,7 +359,7 @@ class TelegramDownloaderApp(QWidget):
                 self.db.add_item(ent, m.id, int(m.date.timestamp()), mt, f"{m.date.strftime('%Y%md_%H%M%S')}_{m.id}", f_sz)
                 c += 1
                 if c % 25 == 0: 
-                    self.signals.status.emit(f"Importing: {c} items discovered...", "#007aff")
+                    self.signals.bulk_status.emit(f"Importing: {c} items discovered...", "#007aff")
                     self.signals.bulk_table_refresh.emit()
                 await asyncio.sleep(0.02)
             self.signals.bulk_list_fetched.emit([c])
@@ -325,18 +378,22 @@ class TelegramDownloaderApp(QWidget):
     # --- Bulk Manager ---
     def on_select_bulk_location(self):
         f = QFileDialog.getExistingDirectory(self, "Select Folder", self.settings.value("last_bulk_dir", HOME_DIR))
-        if f: self.settings.setValue("last_bulk_dir", f); self.btn_bulk_s.setEnabled(True)
+        if f: 
+            self.settings.setValue("last_bulk_dir", f)
+            if not self.is_bulk_running: self.btn_bulk_s.setEnabled(True)
     def on_start_bulk_download(self):
         loc = self.settings.value("last_bulk_dir", None)
         if not loc: return
-        self.is_bulk_running, self.is_paused = True, False; self.btn_bulk_s.setEnabled(False); self.btn_bulk_p.setEnabled(True); asyncio.run_coroutine_threadsafe(self.bulk_manager(loc, list(self.selected_ids_memory)), self.loop)
+        self.is_bulk_running, self.is_bulk_paused = True, False
+        self.btn_bulk_f.setEnabled(False); self.btn_bulk_s.setEnabled(False); self.btn_bulk_p.setEnabled(True)
+        asyncio.run_coroutine_threadsafe(self.bulk_manager(loc, list(self.selected_ids_memory)), self.loop)
     async def bulk_manager(self, loc, ids):
         while self.is_bulk_running:
             p = self.db.get_pending_items(ids)
             if not p: break
             for it in p:
                 if not self.is_bulk_running: break
-                while self.is_paused: await asyncio.sleep(0.5)
+                while self.is_bulk_paused: await asyncio.sleep(0.5)
                 try:
                     m = await self.downloader.get_message(it[1], it[2])
                     fp = os.path.join(loc, f"{it[5]}{self.downloader.get_extension(m.media)}")
@@ -344,9 +401,9 @@ class TelegramDownloaderApp(QWidget):
                     self.signals.bulk_table_refresh.emit()
                     
                     self.start_time, self.initial_bytes = None, 0
-                    await self.downloader.download_media(m, fp, self.progress_callback, lambda: self.is_paused, lambda: not self.is_bulk_running)
+                    await self.downloader.download_media(m, fp, self.bulk_progress_cb, lambda: self.is_bulk_paused, lambda: not self.is_bulk_running)
                     
-                    if self.is_bulk_running and not self.is_paused:
+                    if self.is_bulk_running and not self.is_bulk_paused:
                         self.db.update_status(it[1], it[2], 'completed', fp)
                         if it[0] in self.selected_ids_memory:
                             self.selected_ids_memory.remove(it[0])
@@ -360,8 +417,8 @@ class TelegramDownloaderApp(QWidget):
                             wait_s = 5
                         
                         for rem in range(wait_s, 0, -1):
-                            if not self.is_bulk_running or self.is_paused: break
-                            self.signals.status.emit(f"Waiting: next download in {rem}s...", "#ffa500")
+                            if not self.is_bulk_running or self.is_bulk_paused: break
+                            self.signals.bulk_status.emit(f"Waiting: next download in {rem}s...", "#ffa500")
                             await asyncio.sleep(1)
                     else:
                         self.db.update_status(it[1], it[2], 'pending')
@@ -371,34 +428,33 @@ class TelegramDownloaderApp(QWidget):
                     self.db.update_status(it[1], it[2], 'failed')
                     self.signals.bulk_table_refresh.emit()
                     await asyncio.sleep(5)
-            if not self.is_paused: break
+            if not self.is_bulk_paused: break
         self.is_bulk_running = False
-        self.loop.call_soon_threadsafe(lambda: (self.btn_bulk_s.setEnabled(True), self.btn_bulk_p.setEnabled(False), self.btn_bulk_p.setText("Stop/Pause")))
-        self.signals.status.emit("Bulk task completed.", "#34c759")
+        self.loop.call_soon_threadsafe(lambda: (
+            self.btn_bulk_f.setEnabled(True), 
+            self.btn_bulk_s.setEnabled(True), 
+            self.btn_bulk_p.setEnabled(False), 
+            self.btn_bulk_p.setText("Stop/Pause"),
+            self.btn_open_folder_bulk.setVisible(True)
+        ))
+        self.signals.bulk_status.emit("Bulk task completed.", "#34c759")
 
-    def on_stop_bulk_download(self): self.is_paused = not self.is_paused; self.btn_bulk_p.setText("Resume" if self.is_paused else "Stop/Pause")
+    def on_stop_bulk_download(self): self.is_bulk_paused = not self.is_bulk_paused; self.btn_bulk_p.setText("Resume" if self.is_bulk_paused else "Stop/Pause")
     def on_clear_bulk_list(self):
         if QMessageBox.question(self, "Clear", "Wipe all DB?") == QMessageBox.StandardButton.Yes: 
-            self.db.clear_all()
-            self.selected_ids_memory = []
-            self.load_bulk_list_to_table()
-            self.update_fetch_button_text()
+            self.db.clear_all(); self.selected_ids_memory = []; self.load_bulk_list_to_table(); self.update_fetch_button_text(); self.signals.bulk_status.emit("Database wiped.", "#ff453a")
     def on_delete_selected(self):
         if self.selected_ids_memory: 
-            self.db.delete_items(self.selected_ids_memory)
-            self.selected_ids_memory = []
-            self.load_bulk_list_to_table()
-            self.update_fetch_button_text()
+            self.db.delete_items(self.selected_ids_memory); self.selected_ids_memory = []; self.load_bulk_list_to_table(); self.update_fetch_button_text(); self.signals.bulk_status.emit("Selected items deleted.", "#ff453a")
     def on_export_list(self):
         p, _ = QFileDialog.getSaveFileName(self, "Export", "", "JSON (*.json)")
-        if p:
-            with open(p, 'w') as f: json.dump(self.db.get_all_items(), f)
+        if p: (open(p, 'w').write(json.dumps(self.db.get_all_items()))); self.signals.bulk_status.emit("Database exported to JSON.", "#34c759")
     def on_import_list(self):
         p, _ = QFileDialog.getOpenFileName(self, "Import", "", "JSON (*.json)")
         if p:
             with open(p, 'r') as f: itm = json.load(f);
             for it in itm: self.db.add_item(it[1], it[2], it[3], it[4], it[5], it[6])
-            self.on_ready()
+            self.signals.bulk_status.emit("Database imported from JSON.", "#34c759"); self.on_ready()
 
     # --- Single actions ---
     def on_select_location_click(self):
@@ -409,23 +465,81 @@ class TelegramDownloaderApp(QWidget):
         try:
             msg = await self.downloader.get_message(c, m)
             if msg and msg.media: 
+                self.current_message = msg
                 self.signals.ask_location_success.emit(msg, self.downloader.get_extension(msg.media))
         except: pass
     def on_ask_location_success(self, msg, ex):
-        p, _ = QFileDialog.getSaveFileName(self, "Save", os.path.join(self.settings.value("last_download_dir", HOME_DIR), f"DL_{msg.id}{ex}"))
-        if p: self.current_message, self.current_file_path = msg, p; self.btn_start_download.setEnabled(True); self.settings.setValue("last_download_dir", os.path.dirname(p))
+        # Using DontConfirmOverwrite because our logic handles Resuming from existing files
+        # We also use DontUseNativeDialog on Mac to ensure the option is strictly respected
+        p, _ = QFileDialog.getSaveFileName(self, "Save / Resume File", 
+                                           os.path.join(self.settings.value("last_download_dir", HOME_DIR), f"DL_{msg.id}{ex}"),
+                                           options=QFileDialog.Option.DontConfirmOverwrite | QFileDialog.Option.DontUseNativeDialog)
+        if p: 
+            self.current_message, self.current_file_path = msg, p
+            self.btn_start_download.setEnabled(True)
+            self.settings.setValue("last_download_dir", os.path.dirname(p))
+            self.settings.setValue("last_single_fp", p)
+            self.settings.setValue("last_single_url", self.link_entry.text().strip())
+            self.single_status_label.setText(f"Destination: {os.path.basename(p)}")
+
     def on_start_download_click(self):
-        self.is_paused = False; self.btn_start_download.setEnabled(False); self.btn_pause_resume.setEnabled(True); asyncio.run_coroutine_threadsafe(self.run_download(), self.loop)
+        # If we have a saved link but no message loaded, we must fetch it first
+        if not self.current_message:
+            u = self.link_entry.text().strip()
+            c, m = parse_telegram_link(u)
+            if c and m:
+                # We do a 'background' prepare then chain the download
+                asyncio.run_coroutine_threadsafe(self.auto_resume_single(c, m), self.loop)
+                return
+
+        self.start_time, self.initial_bytes = None, 0
+        self.is_single_paused = False
+        self.btn_select_location.setEnabled(False); self.btn_start_download.setEnabled(False); self.btn_pause_resume.setEnabled(True)
+        asyncio.run_coroutine_threadsafe(self.run_download(), self.loop)
+
+    async def auto_resume_single(self, c, m):
+        try:
+            self.signals.single_status.emit("Resolving link for resume...", "#007aff")
+            msg = await self.downloader.get_message(c, m)
+            if msg and msg.media:
+                self.current_message = msg
+                # Now we can safely trigger the actual download call on the main thread
+                self.loop.call_soon_threadsafe(self.on_start_download_click)
+            else:
+                self.signals.error.emit("Message has no media or vanished.")
+        except Exception as e:
+            self.signals.error.emit(f"Resume resolution failed: {e}")
     async def run_download(self):
-        try: await self.downloader.download_media(self.current_message, self.current_file_path, self.progress_callback, lambda: self.is_paused, lambda: False); self.signals.success.emit(self.current_file_path)
+        try: await self.downloader.download_media(self.current_message, self.current_file_path, self.single_progress_cb, lambda: self.is_single_paused, lambda: False); self.signals.success.emit(self.current_file_path)
         except Exception as e: self.signals.error.emit(str(e))
-    async def progress_callback(self, c, t):
+
+    # --- Worker Thread Helpers ---
+    async def single_progress_cb(self, c, t):
         if self.start_time is None: self.start_time, self.initial_bytes = time.time(), c
-        e = time.time()-self.start_time; p = (c/t)*100 if t else 0; s = ((c-self.initial_bytes)/e)/1048576 if e>0 else 0; self.signals.progress.emit(p, f"{p:.1f}% | {c/1048576:.1f}MB | {s:.2f}MB/s")
-    def update_progress(self, p, t): self.progress_bar.setValue(int(p)); self.update_status(t)
-    def on_success(self, p): self.update_status(f"Done: {os.path.basename(p)}", "#34c759")
-    def on_error(self, m): QMessageBox.critical(self, "Error", m); self.on_ready()
-    def on_pause_resume_click(self): self.is_paused = not self.is_paused
+        cur_mb, tot_mb = c/1048576, t/1048576; e = time.time()-self.start_time; p = (c/t)*100 if t else 0; s = ((c-self.initial_bytes)/e)/1048576 if e>0 else 0
+        self.signals.single_progress.emit(p, f"{p:.1f}% | {cur_mb:.1f} / {tot_mb:.1f}MB | {s:.2f}MB/s")
+    async def bulk_progress_cb(self, c, t):
+        if self.start_time is None: self.start_time, self.initial_bytes = time.time(), c
+        cur_mb, tot_mb = c/1048576, t/1048576; e = time.time()-self.start_time; p = (c/t)*100 if t else 0; s = ((c-self.initial_bytes)/e)/1048576 if e>0 else 0
+        self.signals.bulk_progress.emit(p, f"{p:.1f}% | {cur_mb:.1f} / {tot_mb:.1f}MB | {s:.2f}MB/s")
+    def update_status(self, t, c="#e0e0e0"): self.signals.single_status.emit(t, c); self.signals.bulk_status.emit(t, c)
+    def on_success(self, p): 
+        m = f"Done: {os.path.basename(p)}\n📁 {os.path.dirname(p)}"
+        self.signals.single_status.emit(m, "#34c759"); self.signals.bulk_status.emit(m, "#34c759")
+        self.btn_select_location.setEnabled(True); self.btn_pause_resume.setEnabled(False); self.btn_pause_resume.setText("Pause/Resume")
+        self.btn_open_folder_single.setVisible(True); self.btn_open_folder_bulk.setVisible(True)
+    def on_error(self, m): 
+        QMessageBox.critical(self, "Error", m); self.on_ready()
+        self.btn_select_location.setEnabled(True); self.btn_pause_resume.setEnabled(False); self.btn_pause_resume.setText("Pause/Resume")
+        self.btn_open_folder_single.setVisible(False); self.btn_open_folder_bulk.setVisible(False)
+    def on_pause_resume_click(self): 
+        self.is_single_paused = not self.is_single_paused
+        self.btn_pause_resume.setText("Resume" if self.is_single_paused else "Pause/Resume")
+        self.btn_open_folder_single.setVisible(False); self.btn_open_folder_bulk.setVisible(False)
+
+    def open_folder(self, path):
+        if path and os.path.exists(path):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 
     def prompt_phone(self):
         ph, ok = QInputDialog.getText(self, "Login", "Phone:")
