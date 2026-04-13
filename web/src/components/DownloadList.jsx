@@ -46,16 +46,18 @@ const DownloadList = () => {
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '--';
-    const date = new Date(dateStr.replace(' ', 'T'));
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const d = date.getDate();
-    const m = months[date.getMonth()];
-    const y = date.getFullYear();
-    // AM PM format
-    const h = date.getHours() % 12 || 12;
-    const min = date.getMinutes().toString().padStart(2, '0');
-    const ampm = date.getHours() >= 12 ? 'PM' : 'AM';
-    return `${d} ${m} ${y} • ${h}:${min} ${ampm}`;
+    // Handle both 'YYYY-MM-DD HH:MM:SS' and ISO formats
+    const date = new Date(dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T'));
+    
+    return date.toLocaleString('en-GB', {
+      timeZone: 'Asia/Dhaka',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }).replace(',', ' •');
   };
 
   const sortedFiles = useMemo(() => {
