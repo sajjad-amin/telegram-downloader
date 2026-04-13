@@ -429,27 +429,42 @@ def cancel_task():
         return jsonify({"success": True})
     return jsonify({"error": "Task not found"}), 404
 
+@app.route('/api/downloads/rename', methods=['POST'])
+def rename_item():
+    data = request.json
+    old_rel_path = data.get('old_path')
+    new_name = data.get('new_name')
+    if not old_rel_path or not new_name:
+        return jsonify({"error": "Missing path or name"}), 400
+    
+    try:
+        old_abs_path = get_safe_path(old_rel_path)
+        parent = os.path.dirname(old_abs_path)
+        new_abs_path = os.path.join(parent, new_name)
+        
+        if not new_abs_path.startswith(DOWNLOAD_BASE):
+            return jsonify({"error": "Invalid destination"}), 400
+            
+        os.rename(old_abs_path, new_abs_path)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
 async def handle_single(task_id, url, profile):
     print(f"DEBUG: Task {task_id} starting in background thread")
     try:
-        print(f"DEBUG: Fetching downloader for profile: {profile}")
         downloader = await get_downloader(profile)
         if not downloader:
-            print(f"DEBUG: Task {task_id} failed - No Downloader")
             emit_progress(task_id, 0, "Error: Missing API Credentials")
             return
 
-        print(f"DEBUG: Parsing link: {url}")
         chat_id, message_id = parse_telegram_link(url)
         if not chat_id or not message_id:
-            print(f"DEBUG: Task {task_id} failed - Invalid link")
             emit_progress(task_id, 0, "Error: Invalid Link")
             return
 
-        print(f"DEBUG: Fetching message {message_id} from {chat_id}")
         msg = await downloader.get_message(chat_id, message_id)
         if not msg or not msg.media:
-            print(f"DEBUG: Task {task_id} failed - No media found")
             emit_progress(task_id, 0, "Error: No Media")
             return
 
@@ -457,11 +472,19 @@ async def handle_single(task_id, url, profile):
         filename = f"DL_{msg.id}{ext}"
         path = os.path.join(DOWNLOAD_BASE, filename)
         
-        print(f"DEBUG: Task {task_id} - Starting download to {path}")
+        start_time = time.time()
+        start_bytes = None
 
         async def cb(c, t):
+            nonlocal start_bytes
+            if start_bytes is None: start_bytes = c
+            
+            elapsed = time.time() - start_time
+            downloaded = c - start_bytes
+            speed = (downloaded / elapsed) / 1048576 if elapsed > 0 else 0
+            
             p = (c/t)*100 if t else 0
-            emit_progress(task_id, p, f"{p:.1f}% | {c/1048576:.1f}/{t/1048576:.1f}MB")
+            emit_progress(task_id, p, f"{p:.1f}% | {c/1048576:.1f}/{t/1048576:.1f}MB | {speed:.1f}MB/s")
 
         await downloader.download_media(
             msg, 
@@ -470,16 +493,13 @@ async def handle_single(task_id, url, profile):
             pause_flag=background_tasks[task_id]['pause_event'].is_set,
             cancel_flag=background_tasks[task_id]['cancel_event'].is_set
         )
-        print(f"DEBUG: Task {task_id} - Download Complete")
         emit_progress(task_id, 100, f"Done: {filename}")
         background_tasks[task_id]['status'] = 'done'
     except Exception as e:
         print(f"DEBUG: Task {task_id} - Exception: {str(e)}")
-        import traceback
-        traceback.print_exc()
         if task_id in background_tasks:
             background_tasks[task_id]['status'] = 'failed'
-        emit_progress(task_id, 0, f"Error: {str(e)}")
+            emit_progress(task_id, 0, f"Error: {str(e)}", status='failed')
 
 @app.route('/api/tasks', methods=['GET'])
 def get_tasks():

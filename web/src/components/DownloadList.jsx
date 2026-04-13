@@ -18,6 +18,7 @@ const DownloadList = () => {
   const [viewModal, setViewModal] = useState({ open: false, filename: '', type: '', path: '' });
   const [treeModal, setTreeModal] = useState({ open: false, action: '', src: '' });
   const [mkdirModal, setMkdirModal] = useState({ open: false, name: '' });
+  const [renameModal, setRenameModal] = useState({ open: false, oldPath: '', name: '' });
 
   const menuRef = useRef(null);
 
@@ -146,6 +147,18 @@ const DownloadList = () => {
     }
   };
 
+  const handleRename = async () => {
+    try {
+      await fetch('/api/downloads/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old_path: renameModal.oldPath, new_name: renameModal.name })
+      });
+      setRenameModal({ open: false, oldPath: '', name: '' });
+      fetchFiles();
+    } catch (e) { }
+  };
+
   return (
     <div className="space-y-6">
       <Modal
@@ -186,6 +199,19 @@ const DownloadList = () => {
         </div>
       )}
 
+      {renameModal.open && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="glass-card w-full max-w-sm p-6">
+            <h3 className="text-xl font-bold text-white mb-4">Rename Item</h3>
+            <input autoFocus className="input-field mb-6" value={renameModal.name} onChange={(e) => setRenameModal({ ...renameModal, name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && handleRename()} />
+            <div className="flex justify-end gap-3 font-bold uppercase text-[11px] tracking-widest">
+              <button onClick={() => setRenameModal({ open: false, oldPath: '', name: '' })} className="px-4 py-2 text-text-dim">Cancel</button>
+              <button onClick={handleRename} className="btn-primary">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Action Menu Backdrop/Sheet */}
       {activeMenu && (
         <>
@@ -212,6 +238,9 @@ const DownloadList = () => {
             </button>
             <button onClick={() => { setTreeModal({ open: true, action: 'copy', src: activeMenu.path }); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 transition-all">
               <Copy size={18} className="text-primary" /> Duplicate
+            </button>
+            <button onClick={() => { setRenameModal({ open: true, oldPath: activeMenu.path, name: activeMenu.name }); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 transition-all">
+              <RefreshCw size={18} className="text-primary" /> Rename
             </button>
             <div className="h-px bg-white/5 my-2 mx-6 md:mx-4" />
             <button onClick={() => { setDeleteModal({ open: true, type: 'single', paths: [activeMenu.path] }); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-red-500 hover:bg-red-500/10 transition-all">
