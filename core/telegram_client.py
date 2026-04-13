@@ -12,12 +12,16 @@ class TelegramDownloader:
             aid = int(api_id) if api_id else 0
         except ValueError:
             aid = 0
-        self.client = TelegramClient(session_path, aid, api_hash, loop=loop)
-        try:
-            self.loop = loop or asyncio.get_event_loop()
-        except RuntimeError:
-            self.loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.loop)
+            
+        self.loop = loop
+        self.client = TelegramClient(session_path, aid, api_hash, loop=self.loop)
+        
+        if not self.loop:
+            try:
+                self.loop = asyncio.get_event_loop()
+            except RuntimeError:
+                self.loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(self.loop)
 
     async def connect(self):
         await self.client.connect()
@@ -50,7 +54,12 @@ class TelegramDownloader:
         # Accurate Total Size Detection
         total_size = 0
         if message.document: total_size = message.document.size
-        elif message.photo: total_size = message.photo.sizes[-1].size
+        elif message.photo: 
+            # Progressive photos might not have .size directly on the last element
+            largest = message.photo.sizes[-1]
+            total_size = getattr(largest, 'size', 0)
+            if not total_size and hasattr(message.photo, 'large_size'): # Some versions use this
+                total_size = message.photo.large_size
         elif message.audio: total_size = message.audio.size
         elif message.video: total_size = message.video.size
         

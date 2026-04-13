@@ -1,79 +1,77 @@
-# TG Downloader
+# Telegram Video Downloader (TGDL)
 
-A professional Telegram media downloader with support for both GUI and CLI interfaces.
+A professional, cross-platform Telegram media downloader supporting GUI, CLI, and Web interfaces. Built for high-speed downloads, multi-account management, and reliable session persistence.
 
-## Features
+## 🚀 Features
 
-- **Double Interface**: GUI (PyQt6) for visual management and CLI for automation.
-- **Multi-Account Profiles**: Manage multiple Telegram accounts. Each profile maintains its own session, settings, and download database.
-- **Resume Support**: Interrupted downloads can be resumed without losing data.
-- **Batch Downloading**: Scan channels or use a `links.txt` file to download multiple files with built-in anti-blocking delays.
-- **Database Tracking**: Keeps a record of download status (completed, pending, failed) to avoid duplicates.
-- **Modern UI**: A sleek, compact dark-mode interface.
+- **Triple Interface**: 
+  - **GUI (PyQt6)**: Desktop-native experience.
+  - **CLI (Console)**: Advanced automation and terminal-speed operations.
+  - **Web (React/Flask)**: Modern, responsive dashboard perfect for VPS/Remote usage.
+- **Multi-Account Profiles**: Manage dozens of Telegram accounts. Each profile is sandboxed with its own session file, individual settings, and download database.
+- **Robust Downloads**: Built-in resume support, anti-blocking delays, and recursive directory management.
+- **High-Density Data**: File management via sortable tables, bulk actions, and nested folder navigation.
+- **Real-time Monitoring**: Socket.io integration provides instant progress updates on the Web dashboard.
 
-## Installation
+## 🛠️ Installation
 
 ### Prerequisites
-- Python 3.8+
-- [API ID and API Hash](https://my.telegram.org/apps) from Telegram.
+- **Python 3.10+**
+- **Node.js & NPM** (Only for Web build)
+- **Telegram API Credentials**: Get your `API_ID` and `API_HASH` from [my.telegram.org](https://my.telegram.org/apps).
 
-### Setup (Virtual Environment)
-1. Clone the repository:
+### Setup
+1. **Clone & Navigate**:
    ```bash
    git clone https://github.com/sajjad-amin/telegram-downloader.git
    cd telegram-downloader
    ```
-2. Create and activate a virtual environment:
+2. **Environment**:
    ```bash
-   # Windows
-   python -m venv .venv
-   .venv\Scripts\activate
-
-   # macOS / Linux
    python3 -m venv .venv
    source .venv/bin/activate
-   ```
-3. Install dependencies:
-   ```bash
    pip install -r requirements.txt
+   pip install -r requirements_web.txt
+   ```
+3. **Configuration**:
+   Copy `.env.example` to `.env` and fill in your credentials.
+   ```bash
+   cp .env.example .env
    ```
 
-## Usage
+## 📖 Usage
 
-### GUI Mode
-Launch the visual interface:
+### 🎨 GUI Mode
+Native desktop interface:
 ```bash
 python tg_downloader_gui.py
 ```
-- **Profiles**: Switch accounts via the top-right dropdown. Use the "Profiles" tab to add or remove accounts.
-- **Single**: Download a single file via message link.
-- **Bulk**: Scan a channel and download multiple files in batch.
 
-### CLI Mode
-For command-line operations:
+### ⌨️ CLI Mode
+Automated downloads and profile switching:
 ```bash
-python console.py
-```
-- Run without arguments for help documentation.
-- `python console.py [URL]` to download a single file.
-- `python console.py links.txt` to download links from a text file.
-- `python console.py --profile` to manage account profiles.
-
-## Building Standalone App
-To create a standalone executable for your platform:
-```bash
-python build.py
-```
-- The output can be found in the `dist/` folder.
-- macOS users can generate a `.dmg` installer (requires `create-dmg`).
-```bash
-brew install create-dmg
+python console.py --help
 ```
 
-## Configuration
-All data is stored in `~/.telegram_video_downloader/`.
-- `active_profile`: Stores the current active profile reference.
-- Profile subfolders: Each contains its own `my_account.session`, `downloads.db`, and `settings.ini`.
+### 🌐 Web Mode (Production / VPS)
+The Web UI is served via Flask and handles both API and static assets.
 
-## License
+1. **Build Frontend Assets**:
+   ```bash
+   cd web && npm install && npm run build
+   cd ..
+   ```
+2. **Start with PM2**:
+   ```bash
+   pm2 start ecosystem.config.js
+   ```
+3. **Access**: Navigate to `http://your-vps-ip:5001`. Use the credentials defined in your `.env`.
+
+## 📁 Project Structure
+- `core/`: Shared downloading and client logic.
+- `gui/`: PyQt6 UI components.
+- `web/`: React frontend and Flask backend.
+- `~/.telegram_video_downloader/`: Home for all profiles, sessions, and databases.
+
+## 📄 License
 MIT

@@ -1,31 +1,36 @@
-# System
-.DS_Store
-Thumbs.db
-
 # Python
+.venv/
 __pycache__/
 *.py[cod]
 *$py.class
-.venv/
-env/
-venv/
+.pytest_cache/
+
+# Node
+web/node_modules/
+web/dist/
+.npm
+npm-debug.log*
+
+# Environment & Secrets
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Application Data (Settings and Session)
-*.session
-*.session-journal
-downloads.db
-settings.ini
-
-# IDEs
-.vscode/
+# OS
+.DS_Store
+Thumbs.db
 .idea/
-*.swp
-*.swo
+*.imlclear
 
-# Project specific
+# App Data (Local Config)
+.telegram_video_downloader/
+
+# Downloads
 downloads/
-exports/
+
+# Build artifacts
 dist/
 build/
 *.spec
