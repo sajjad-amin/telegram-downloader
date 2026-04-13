@@ -8,7 +8,16 @@ import DownloadList from './DownloadList';
 import Modal from './ui/Modal';
 import io from 'socket.io-client';
 
-const socket = io();
+// Connect to the backend (5001) if we are in dev mode (5173), otherwise use the same origin
+const SOCKET_URL = window.location.port === '5173' 
+  ? `${window.location.protocol}//${window.location.hostname}:5001`
+  : '/';
+
+const socket = io(SOCKET_URL, {
+  transports: ['websocket', 'polling'],
+  autoConnect: true,
+  reconnection: true
+});
 
 const Dashboard = () => {
   const location = useLocation();

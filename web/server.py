@@ -1,7 +1,16 @@
 import os
+import sys
+
+# Production Networking Fix: Monkey patch BEFORE other imports
+if sys.platform != 'darwin':
+    try:
+        import eventlet
+        eventlet.monkey_patch()
+    except ImportError:
+        pass
+
 import asyncio
 import threading
-import sys
 
 # macOS asyncio/eventlet compatibility fix
 if sys.platform == 'darwin':
