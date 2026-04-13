@@ -314,6 +314,13 @@ class TelegramDownloaderApp(QWidget):
         
         # Reload paths and data
         self.init_paths()
+
+        # CRITICAL: Ensure we have credentials before initializing client
+        if not self.api_id or not self.api_hash:
+            if not self.show_credentials_dialog():
+                self.update_status("Error: Missing API Credentials", "#ff453a")
+                return
+
         self.load_bulk_list_to_table(); self.load_profiles_to_table()
         
         # Start Client
@@ -359,7 +366,14 @@ class TelegramDownloaderApp(QWidget):
         if ok and ph:
             clean_p = ph.replace("+", "")
             p_dir = os.path.join(CONFIG_DIR, clean_p)
-            if not os.path.exists(p_dir): os.makedirs(p_dir)
+            if not os.path.exists(p_dir): 
+                os.makedirs(p_dir)
+                # Pre-seed credentials from current session for convenience
+                if self.api_id and self.api_hash:
+                    new_cfg = QSettings(os.path.join(p_dir, "settings.ini"), QSettings.Format.IniFormat)
+                    new_cfg.setValue("API_ID", self.api_id)
+                    new_cfg.setValue("API_HASH", self.api_hash)
+                    new_cfg.sync()
             
             set_active_profile(clean_p)
             self.refresh_profiles_combo()
@@ -782,7 +796,14 @@ class TelegramDownloaderApp(QWidget):
     def show_credentials_dialog(self):
         d = CredentialsDialog(self)
         if d.exec() == QDialog.DialogCode.Accepted:
-            aid, ah = d.get_credentials(); self.settings.setValue("API_ID", aid); self.settings.setValue("API_HASH", ah); self.api_id, self.api_hash = aid, ah; return True
+            aid, ah = d.get_credentials()
+            # Save to current profile
+            self.settings.setValue("API_ID", aid); self.settings.setValue("API_HASH", ah)
+            self.settings.sync()
+            
+            # Update local memory
+            self.api_id, self.api_hash = aid, ah
+            return True
         return False
 
 if __name__ == '__main__':

@@ -122,11 +122,9 @@ if not api_id or not api_hash:
     if not os.path.exists(CURRENT_CONFIG_DIR): os.makedirs(CURRENT_CONFIG_DIR)
     with open(SETTINGS_FILE, 'w') as f: config.write(f)
 
-# Initialize downloader with active session
-downloader = TelegramDownloader(SESSION_FILE, api_id, api_hash)
+# Global state
 start_time = None
 is_paused = False
-
 start_bytes = 0
 
 async def progress_callback(current, total):
@@ -156,7 +154,7 @@ def check_pause_flag():
             else: print("--- RESUMING ---\n")
     return is_paused
 
-async def download_single(url, dest_dir, custom_name=None, is_batch=False):
+async def download_single(downloader, url, dest_dir, custom_name=None, is_batch=False):
     global start_time, is_paused, start_bytes
     chat_id, message_id = parse_telegram_link(url)
     if not chat_id or not message_id:
@@ -213,6 +211,44 @@ async def main():
     parser.add_argument("--profile", action="store_true", help="Manage or Switch Profiles")
     parser.add_argument("--add-account", action="store_true", help="Login to a new account")
     args = parser.parse_args()
+
+    # Initialization logic moved inside main to avoid event loop issues
+    curr_config_dir, settings_file, session_file, db_file = get_config_paths()
+    
+    config = configparser.ConfigParser()
+    config.optionxform = str 
+    if os.path.exists(settings_file):
+        config.read(settings_file)
+
+    if 'General' not in config.sections():
+        config.add_section('General')
+
+    # API Inheritance
+    if not config.get('General', 'API_ID', fallback=None):
+        root_settings = os.path.join(CONFIG_DIR, "settings.ini")
+        if os.path.exists(root_settings) and root_settings != settings_file:
+            tmp_cfg = configparser.ConfigParser(); tmp_cfg.read(root_settings)
+            aid = tmp_cfg.get('General', 'API_ID', fallback=None)
+            ahash = tmp_cfg.get('General', 'API_HASH', fallback=None)
+            if aid and ahash: config.set('General', 'API_ID', aid); config.set('General', 'API_HASH', ahash)
+
+    api_id = config.get('General', 'API_ID', fallback=None)
+    api_hash = config.get('General', 'API_HASH', fallback=None)
+
+    if not api_id or not api_hash:
+        print("=== Telegram Downloader Setup ===")
+        print("Credentials not found. Please provide them once.")
+        api_id = input("Enter API ID: ").strip()
+        api_hash = input("Enter API HASH: ").strip()
+        if not api_id or not api_hash:
+            print("Error: API ID and Hash are required."); sys.exit(1)
+        config.set('General', 'API_ID', api_id)
+        config.set('General', 'API_HASH', api_hash)
+        if not os.path.exists(curr_config_dir): os.makedirs(curr_config_dir)
+        with open(settings_file, 'w') as f: config.write(f)
+
+    # Initialize downloader with active session inside the loop
+    downloader = TelegramDownloader(session_file, api_id, api_hash)
 
     # Documentation if no arguments
     if len(sys.argv) == 1:
@@ -317,7 +353,7 @@ async def main():
         with open(target, 'r') as f:
             links = [line.strip() for line in f if line.strip() and not line.startswith("#")]
         for i, url in enumerate(links):
-            await download_single(url, dest_dir, is_batch=True)
+            await download_single(downloader, url, dest_dir, is_batch=True)
             if i < len(links) - 1:
                 delay = random.randint(5, 10)
                 for r in range(delay, 0, -1):
@@ -331,8 +367,8 @@ async def main():
             if os.path.isdir(exp) or exp.endswith(os.path.sep): config.set('General', 'last_download_dir_cli', exp)
             elif os.path.sep in exp: config.set('General', 'last_download_dir_cli', os.path.dirname(exp))
         else: config.set('General', 'last_download_dir_cli', dest_dir)
-        with open(SETTINGS_FILE, 'w') as f: config.write(f)
-        await download_single(target, dest_dir, custom_input if custom_input else None)
+        with open(settings_file, 'w') as f: config.write(f)
+        await download_single(downloader, target, dest_dir, custom_input if custom_input else None)
 
 if __name__ == '__main__':
     try:
