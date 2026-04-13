@@ -46,9 +46,9 @@ const DownloadList = () => {
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '--';
-    // Handle both 'YYYY-MM-DD HH:MM:SS' and ISO formats
-    const date = new Date(dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T'));
-    
+    // Ensure browser parses it as UTC if no offset is provided
+    const date = new Date(dateStr);
+
     return date.toLocaleString('en-GB', {
       timeZone: 'Asia/Dhaka',
       day: 'numeric',

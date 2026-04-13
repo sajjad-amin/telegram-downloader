@@ -38,7 +38,7 @@ login_sessions = {}
 import time
 import json
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Flask, request, jsonify, send_from_directory, session
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
@@ -273,7 +273,7 @@ def list_downloads():
             "path": os.path.relpath(path, DOWNLOAD_BASE),
             "is_dir": os.path.isdir(path),
             "size": stats.st_size if os.path.isfile(path) else 0,
-            "date": datetime.fromtimestamp(stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+            "date": datetime.fromtimestamp(stats.st_mtime, tz=timezone.utc).isoformat()
         })
     return jsonify(sorted(items, key=lambda x: (not x['is_dir'], x['date']), reverse=True))
 
