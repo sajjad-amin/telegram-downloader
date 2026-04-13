@@ -16,7 +16,18 @@ const SOCKET_URL = window.location.port === '5173'
 const socket = io(SOCKET_URL, {
   transports: ['websocket', 'polling'],
   autoConnect: true,
-  reconnection: true
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 2000
+});
+
+// Defensive error handling for Proxy/Cloudflare issues
+socket.on('connect_error', (err) => {
+  console.error("Socket Connection Error:", err.message);
+  // If websocket fails, try falling back explicitly
+  if (err.message === "xhr poll error") {
+    socket.io.opts.transports = ["polling"];
+  }
 });
 
 const Dashboard = () => {

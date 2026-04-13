@@ -60,7 +60,13 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default_secret')
 CORS(app, supports_credentials=True)
 # Use 'threading' on macOS for better stability with asyncio/Telethon
 async_mode = 'threading' if sys.platform == 'darwin' else 'eventlet'
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode=async_mode)
+socketio = SocketIO(app, 
+    cors_allowed_origins="*", 
+    async_mode=async_mode,
+    ping_timeout=60,
+    ping_interval=25,
+    engineio_logger=False # Set to True if still having issues
+)
 
 # Global Constants
 HOME_DIR = os.path.expanduser("~")
