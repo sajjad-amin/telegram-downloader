@@ -186,8 +186,11 @@ class TelegramDownloaderApp(QWidget):
         info_row = QHBoxLayout(); self.lbl_tot = QLabel("Loaded: 0 files"); self.lbl_sel = QLabel("Selected: 0/100"); self.lbl_sel.setStyleSheet("color: #ffa500; font-weight: bold;"); info_row.addWidget(self.lbl_tot); info_row.addStretch(); info_row.addWidget(self.lbl_sel); bulk_layout.addLayout(info_row); self.bulk_table = QTableWidget(0, 6); self.bulk_table.setHorizontalHeaderLabels(["", "ID", "Type", "Name", "Size", "Status"]); self.bulk_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents); self.bulk_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch); bulk_layout.addWidget(self.bulk_table); self.pagi_layout = QHBoxLayout(); bulk_layout.addLayout(self.pagi_layout)
         
         foot_row = QHBoxLayout(); self.btn_bulk_f = QPushButton("Set Destination"); self.btn_bulk_f.clicked.connect(self.on_select_bulk_location); self.btn_bulk_s = QPushButton("Start Download"); self.btn_bulk_s.setEnabled(False); self.btn_bulk_s.clicked.connect(self.on_start_bulk_download); self.btn_bulk_p = QPushButton("Pause/Resume"); self.btn_bulk_p.setEnabled(False); self.btn_bulk_p.clicked.connect(self.on_stop_bulk_download)
-        btn_del = QPushButton("Delete Selected"); btn_del.clicked.connect(self.on_delete_selected); btn_exp = QPushButton("Export JSON"); btn_exp.clicked.connect(self.on_export_list); btn_imp = QPushButton("Import JSON"); btn_imp.clicked.connect(self.on_import_list); btn_wipe = QPushButton("Clear Database"); btn_wipe.clicked.connect(self.on_clear_bulk_list)
-        foot_row.addWidget(self.btn_bulk_f); foot_row.addWidget(self.btn_bulk_s); foot_row.addWidget(self.btn_bulk_p); foot_row.addStretch(); foot_row.addWidget(btn_del); foot_row.addWidget(btn_exp); foot_row.addWidget(btn_imp); foot_row.addWidget(btn_wipe); bulk_layout.addLayout(foot_row)
+        btn_del = QPushButton("Delete Selected"); btn_del.clicked.connect(self.on_delete_selected); 
+        btn_exp_lnks = QPushButton("Export Links (TXT)"); btn_exp_lnks.clicked.connect(self.on_export_links_txt);
+        btn_exp = QPushButton("Export JSON"); btn_exp.clicked.connect(self.on_export_list); btn_imp = QPushButton("Import JSON"); btn_imp.clicked.connect(self.on_import_list); btn_wipe = QPushButton("Clear Database"); btn_wipe.clicked.connect(self.on_clear_bulk_list)
+        foot_row.addWidget(self.btn_bulk_f); foot_row.addWidget(self.btn_bulk_s); foot_row.addWidget(self.btn_bulk_p); foot_row.addStretch(); 
+        foot_row.addWidget(btn_del); foot_row.addWidget(btn_exp_lnks); foot_row.addWidget(btn_exp); foot_row.addWidget(btn_imp); foot_row.addWidget(btn_wipe); bulk_layout.addLayout(foot_row)
         
         # Internal Bulk Tab Status Bar
         self.bulk_progress_bar = QProgressBar(); self.bulk_progress_bar.setVisible(False)
@@ -551,14 +554,32 @@ class TelegramDownloaderApp(QWidget):
         self.btn_bulk_f.setEnabled(False); self.btn_bulk_s.setEnabled(False); self.btn_bulk_p.setEnabled(True)
         asyncio.run_coroutine_threadsafe(self.bulk_manager(loc, list(self.selected_ids_memory)), self.loop)
     async def bulk_manager(self, loc, ids):
+        # Copy ids to a local work list so we can track progress
+        queue = list(ids) if ids else []
+        
         while self.is_bulk_running:
-            p = self.db.get_pending_items(ids)
+            # If we have a specific selection, process only that. 
+            # Otherwise, fetch all globally pending items.
+            p = self.db.get_pending_items(queue if queue else None)
             if not p: break
-            for it in p:
+            
+            # Filter p to only include things we actually want to process in this pass
+            # (i.e. not 'completed')
+            to_process = [it for it in p if it[7] != 'completed']
+            if not to_process: break
+            
+            for it in to_process:
                 if not self.is_bulk_running: break
                 while self.is_bulk_paused: await asyncio.sleep(0.5)
+                
                 try:
                     m = await self.downloader.get_message(it[1], it[2])
+                    if not m or not m.media:
+                        self.db.update_status(it[1], it[2], 'failed')
+                        if it[0] in queue: queue.remove(it[0])
+                        self.signals.bulk_table_refresh.emit()
+                        continue
+
                     fp = os.path.join(loc, f"{it[5]}{self.downloader.get_extension(m.media)}")
                     self.db.update_status(it[1], it[2], 'downloading')
                     self.signals.bulk_table_refresh.emit()
@@ -570,27 +591,33 @@ class TelegramDownloaderApp(QWidget):
                         self.db.update_status(it[1], it[2], 'completed', fp)
                         if it[0] in self.selected_ids_memory:
                             self.selected_ids_memory.remove(it[0])
+                        if it[0] in queue:
+                            queue.remove(it[0])
                         self.signals.bulk_table_refresh.emit()
                         
                         import random
                         try:
                             mi, mx = int(self.delay_min.text()), int(self.delay_max.text())
                             wait_s = random.randint(min(mi, mx), max(mi, mx))
-                        except:
-                            wait_s = 5
+                        except: wait_s = 5
                         
                         for rem in range(wait_s, 0, -1):
                             if not self.is_bulk_running or self.is_bulk_paused: break
                             self.signals.bulk_status.emit(f"Waiting: next download in {rem}s...", "#ffa500")
                             await asyncio.sleep(1)
                     else:
+                        # If stopped/paused during download, mark as pending to allow resume
                         self.db.update_status(it[1], it[2], 'pending')
                         self.signals.bulk_table_refresh.emit()
                         break
-                except:
+                except Exception as e:
+                    print(f"Bulk item failed: {it[1]}:{it[2]} - {e}")
                     self.db.update_status(it[1], it[2], 'failed')
+                    if it[0] in queue: queue.remove(it[0])
                     self.signals.bulk_table_refresh.emit()
-                    await asyncio.sleep(5)
+            
+            # If we processed our specific queue, we're done
+            if queue: break
             if not self.is_bulk_paused: break
         self.is_bulk_running = False
         self.loop.call_soon_threadsafe(lambda: (
@@ -610,8 +637,50 @@ class TelegramDownloaderApp(QWidget):
         if self.selected_ids_memory: 
             self.db.delete_items(self.selected_ids_memory); self.selected_ids_memory = []; self.load_bulk_list_to_table(); self.update_fetch_button_text(); self.signals.bulk_status.emit("Selected items deleted.", "#ff453a")
     def on_export_list(self):
-        p, _ = QFileDialog.getSaveFileName(self, "Export", "", "JSON (*.json)")
-        if p: (open(p, 'w').write(json.dumps(self.db.get_all_items()))); self.signals.bulk_status.emit("Database exported to JSON.", "#34c759")
+        # Determine items to export: selection vs all
+        if self.selected_ids_memory:
+            items = self.db.get_items_by_id(self.selected_ids_memory)
+            msg = f"Export selected ({len(items)}) items to JSON?"
+        else:
+            items = self.db.get_all_items()
+            msg = f"No selection. Export all ({len(items)}) items to JSON?"
+
+        if QMessageBox.question(self, "Export", msg) == QMessageBox.StandardButton.Yes:
+            p, _ = QFileDialog.getSaveFileName(self, "Export JSON", "", "JSON (*.json)")
+            if p:
+                with open(p, 'w') as f:
+                    f.write(json.dumps(items))
+                self.signals.bulk_status.emit(f"Exported {len(items)} items to JSON.", "#34c759")
+
+    def on_export_links_txt(self):
+        # Determine items
+        if self.selected_ids_memory:
+            items = self.db.get_items_by_id(self.selected_ids_memory)
+            msg = f"Export links for {len(items)} selected items to TXT?"
+        else:
+            items = self.db.get_all_items()
+            msg = f"Export links for ALL ({len(items)}) items to TXT?"
+
+        if QMessageBox.question(self, "Export TXT", msg) == QMessageBox.StandardButton.Yes:
+            p, _ = QFileDialog.getSaveFileName(self, "Export Links (TXT)", "", "Text (*.txt)")
+            if p:
+                links = []
+                for it in items:
+                    c_id, m_id = str(it[1]), str(it[2])
+                    # If it's a numeric private ID (starts with -100)
+                    if c_id.startswith("-100"):
+                        clean_id = c_id.replace("-100", "")
+                        links.append(f"https://t.me/c/{clean_id}/{m_id}")
+                    elif c_id.startswith("-") or c_id.isdigit():
+                        # Other group types or public numeric IDs (rare in this format but for safety)
+                        links.append(f"https://t.me/c/{c_id.lstrip('-')}/{m_id}")
+                    else:
+                        # Username based public link
+                        links.append(f"https://t.me/{c_id}/{m_id}")
+                
+                with open(p, 'w') as f:
+                    f.write("\n".join(links))
+                self.signals.bulk_status.emit(f"Exported {len(links)} links to TXT.", "#34c759")
     def on_import_list(self):
         p, _ = QFileDialog.getOpenFileName(self, "Import", "", "JSON (*.json)")
         if p:

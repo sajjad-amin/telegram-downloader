@@ -47,6 +47,14 @@ class Database:
             cursor = conn.execute(query, params)
             return cursor.fetchall()
 
+    def get_items_by_id(self, item_ids):
+        if not item_ids: return []
+        with sqlite3.connect(self.db_path) as conn:
+            placeholders = ','.join('?' for _ in item_ids)
+            query = f"SELECT * FROM downloads WHERE id IN ({placeholders})"
+            cursor = conn.execute(query, item_ids)
+            return cursor.fetchall()
+
     def update_status(self, channel_id, message_id, status, file_path=None):
         with sqlite3.connect(self.db_path) as conn:
             if file_path:

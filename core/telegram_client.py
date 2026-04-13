@@ -36,6 +36,11 @@ class TelegramDownloader:
         return await self.client.sign_in(phone, code)
 
     async def get_message(self, chat_id, message_id):
+        # Convert numeric strings to int for Telethon compatibility
+        try:
+            if isinstance(chat_id, str) and (chat_id.startswith('-') or chat_id.isdigit()):
+                chat_id = int(chat_id)
+        except: pass
         return await self.client.get_messages(chat_id, ids=message_id)
 
     async def download_media(self, message, file_path, progress_callback=None, pause_flag=None, cancel_flag=None):
