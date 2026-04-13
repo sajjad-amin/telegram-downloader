@@ -23,9 +23,44 @@ CONFIG_DIR = os.path.join(HOME_DIR, ".telegram_video_downloader")
 if not os.path.exists(CONFIG_DIR):
     os.makedirs(CONFIG_DIR)
 
-SETTINGS_FILE = os.path.join(CONFIG_DIR, "settings.ini")
-SESSION_FILE = os.path.join(CONFIG_DIR, "my_account")
 DB_FILE = os.path.join(CONFIG_DIR, "downloads.db")
+ACTIVE_PROFILE_FILE = os.path.join(CONFIG_DIR, "active_profile")
+
+def get_active_profile_name():
+    if os.path.exists(ACTIVE_PROFILE_FILE):
+        with open(ACTIVE_PROFILE_FILE, "r") as f:
+            return f.read().strip()
+    return None
+
+def set_active_profile(name):
+    if name == "Default" or not name:
+        if os.path.exists(ACTIVE_PROFILE_FILE): os.remove(ACTIVE_PROFILE_FILE)
+    else:
+        with open(ACTIVE_PROFILE_FILE, "w") as f:
+            f.write(name)
+
+def get_config_paths():
+    active_p = get_active_profile_name()
+    
+    # Auto-pick first profile if none active and root is empty
+    root_configured = os.path.exists(os.path.join(CONFIG_DIR, "settings.ini")) and \
+                      os.path.exists(os.path.join(CONFIG_DIR, "my_account.session"))
+                      
+    if not active_p and not root_configured:
+        profiles = get_all_profiles()
+        if profiles:
+            active_p = profiles[0]
+            set_active_profile(active_p)
+
+    cd = os.path.join(CONFIG_DIR, active_p) if active_p else CONFIG_DIR
+    return cd, os.path.join(cd, "settings.ini"), \
+           os.path.join(cd, "my_account"), \
+           os.path.join(cd, "downloads.db")
+
+def get_all_profiles():
+    if not os.path.exists(CONFIG_DIR): return []
+    return sorted([d for d in os.listdir(CONFIG_DIR) 
+                  if os.path.isdir(os.path.join(CONFIG_DIR, d)) and d.isdigit()])
 
 
 class TelegramDownloaderApp(QWidget):
@@ -36,25 +71,24 @@ class TelegramDownloaderApp(QWidget):
         except RuntimeError:
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
-        self.settings = QSettings(SETTINGS_FILE, QSettings.Format.IniFormat)
-        self.db = Database(DB_FILE)
+        
+        self.init_paths()
+        self.downloader = None
         self.signals = WorkerSignals()
-        self.api_id = self.settings.value("API_ID", "")
-        self.api_hash = self.settings.value("API_HASH", "")
-        self.downloader = None # Initialized in initialize_client
         
         self.start_time, self.initial_bytes = None, 0
         self.is_fetching, self.is_fetch_paused = False, False
-        self.is_single_paused = False # Independent Single Pause
-        self.is_bulk_running, self.is_bulk_paused = False, False # Independent Bulk Pause
+        self.is_single_paused = False
+        self.is_bulk_running, self.is_bulk_paused = False, False
         
         self.current_message, self.current_file_path = None, None
-        
         self.page_size, self.current_page = 100, 0
         self.selected_ids_memory, self.max_selection = [], 100
 
         self.init_ui()
         self.connect_signals()
+        self.refresh_profiles_combo()
+        
         if not self.api_id or not self.api_hash:
             if not self.show_credentials_dialog(): sys.exit()
 
@@ -71,34 +105,22 @@ class TelegramDownloaderApp(QWidget):
 
     def init_ui(self):
         self.setWindowTitle("Telegram Video Downloader")
-        self.resize(1150, 800)
+        # Modern Compact Styling
         self.setStyleSheet("""
-            QWidget { background-color: #1a1a1a; color: #e0e0e0; font-size: 13px; font-family: -apple-system, '.AppleSystemUIFont', 'Segoe UI', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Helvetica Neue', Roboto, sans-serif; }
-            QLineEdit, QTextEdit, QTableWidget { background-color: #242424; border: 1px solid #333333; border-radius: 8px; padding: 10px; color: #ffffff; gridline-color: #2d2d2d; }
-            QTableWidget::item:selected { background-color: #007aff; }
-            QPushButton { background-color: #007aff; color: white; border-radius: 8px; padding: 10px 20px; font-weight: bold; border: none; }
-            QPushButton:hover { background-color: #0063cc; }
-            QPushButton:disabled { background-color: #2d2d2d; color: #666666; }
-            QPushButton#grey_btn { background-color: #333333; color: #bbbbbb; }
-            QPushButton#grey_btn:hover { background-color: #444444; }
-            QPushButton#page_btn { padding: 6px 12px; min-width: 35px; background-color: #242424; border: 1px solid #444444; color: #888888; }
-            QPushButton#page_btn:disabled { background-color: #007aff; color: white; border: none; font-weight: bold; }
-            QProgressBar { background-color: #242424; border: 1px solid #333333; border-radius: 8px; text-align: center; color: #ffffff; height: 18px; font-weight: bold; }
-            QProgressBar::chunk { background-color: #007aff; border-radius: 7px; }
-            
-            /* Modern Tab Styling */
-            QTabWidget::pane { border: 1px solid #2d2d2d; background: #1a1a1a; border-radius: 10px; top: -1px; }
-            QTabBar::tab { background: #242424; color: #777777; padding: 12px 35px; border-top-left-radius: 10px; border-top-right-radius: 10px; margin-right: 4px; font-weight: bold; min-width: 120px; }
-            QTabBar::tab:hover { background: #2d2d2d; color: #bbbbbb; }
-            QTabBar::tab:selected { background: #007aff; color: #ffffff; border-bottom: 2px solid #007aff; }
-            QHeaderView::section { background-color: #242424; color: #888888; padding: 8px; border: none; border-bottom: 1px solid #333333; font-weight: bold; }
-            QComboBox { background-color: #242424; border: 1px solid #333333; border-radius: 6px; padding: 5px 10px; color: white; }
-            QCheckBox { spacing: 8px; }
-            QCheckBox::indicator { width: 18px; height: 18px; border-radius: 4px; border: 1px solid #444444; background: #242424; }
-            QCheckBox::indicator:checked { background: #007aff; border: 1px solid #007aff; }
+            QWidget { background-color: #121212; color: #cfcfcf; }
+            QLineEdit, QTextEdit, QTableWidget { background-color: #1e1e1e; border: 1px solid #333; border-radius: 4px; padding: 4px; selection-background-color: #0078d4; }
+            QPushButton { background-color: #2d2d2d; border: 1px solid #444; border-radius: 4px; padding: 4px 12px; }
+            QPushButton:hover { background-color: #3d3d3d; border-color: #0078d4; }
+            QPushButton#grey_btn { color: #888; }
+            QProgressBar { border: 1px solid #333; border-radius: 4px; text-align: center; height: 14px; font-size: 10px; }
+            QProgressBar::chunk { background-color: #0078d4; }
+            QTabWidget::pane { border: 1px solid #333; }
+            QTabBar::tab { background: #1e1e1e; padding: 6px 20px; border: 1px solid #333; border-bottom: none; }
+            QTabBar::tab:selected { background: #2d2d2d; border-top: 2px solid #0078d4; }
+            QHeaderView::section { background-color: #1e1e1e; padding: 4px; border: none; border-right: 1px solid #333; border-bottom: 1px solid #333; }
         """)
 
-        main_layout = QVBoxLayout(); main_layout.setContentsMargins(20, 20, 20, 20); self.tabs = QTabWidget()
+        main_layout = QVBoxLayout(); main_layout.setContentsMargins(8, 8, 8, 8); self.tabs = QTabWidget()
         
         self.tab_single = QWidget(); single_layout = QVBoxLayout(self.tab_single)
         self.link_entry = QLineEdit(); self.link_entry.setPlaceholderText("Paste Telegram message link here...")
@@ -177,8 +199,35 @@ class TelegramDownloaderApp(QWidget):
         bulk_layout.addWidget(self.bulk_progress_bar)
         status_row_b = QHBoxLayout(); status_row_b.addWidget(self.bulk_status_label, 1); status_row_b.addWidget(self.btn_open_folder_bulk); bulk_layout.addLayout(status_row_b)
         self.tabs.addTab(self.tab_single, "Single"); self.tabs.addTab(self.tab_bulk, "Bulk")
+        
+        # Profile Management Tab
+        self.tab_profile = QWidget(); prof_layout = QVBoxLayout(self.tab_profile)
+        prof_info = QLabel("<h3>Profile Management</h3>Manage multiple Telegram accounts. Each profile maintains its own session, database, and settings.")
+        prof_info.setWordWrap(True); prof_layout.addWidget(prof_info)
+        
+        self.profile_table = QTableWidget(0, 3); self.profile_table.setHorizontalHeaderLabels(["Account", "Folder", "Action"])
+        self.profile_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        prof_layout.addWidget(self.profile_table)
+        
+        prof_btn_row = QHBoxLayout()
+        btn_add_acc = QPushButton("+ Add New Account"); btn_add_acc.clicked.connect(self.on_add_account_click)
+        btn_refresh_p = QPushButton("Refresh List"); btn_refresh_p.setObjectName("grey_btn"); btn_refresh_p.clicked.connect(self.load_profiles_to_table)
+        prof_btn_row.addWidget(btn_add_acc); prof_btn_row.addStretch(); prof_btn_row.addWidget(btn_refresh_p)
+        prof_layout.addLayout(prof_btn_row)
+        prof_layout.addStretch()
+        
+        self.tabs.addTab(self.tab_profile, "Profiles")
+        
+        # Header with Profile Selector
+        header_layout = QHBoxLayout(); header_layout.addWidget(QLabel("<h2>Telegram Downloader</h2>")); header_layout.addStretch()
+        self.prof_combo = QComboBox(); self.prof_combo.setMinimumWidth(180)
+        self.prof_combo.currentIndexChanged.connect(self.on_profile_combo_changed)
+        header_layout.addWidget(QLabel("Active Profile:")); header_layout.addWidget(self.prof_combo)
+        
+        main_layout.addLayout(header_layout)
         main_layout.addWidget(self.tabs)
         self.setLayout(main_layout)
+        self.load_profiles_to_table()
 
     def connect_signals(self):
         # Mapping signals to their respective tab widgets
@@ -192,7 +241,7 @@ class TelegramDownloaderApp(QWidget):
 
     def run_asyncio_loop(self): asyncio.set_event_loop(self.loop); self.initialize_client(); self.loop.run_forever()
     def initialize_client(self):
-        try: self.downloader = TelegramDownloader(SESSION_FILE, self.api_id, self.api_hash, loop=self.loop); asyncio.run_coroutine_threadsafe(self.check_login(), self.loop)
+        try: self.downloader = TelegramDownloader(self.session_file, self.api_id, self.api_hash, loop=self.loop); asyncio.run_coroutine_threadsafe(self.check_login(), self.loop)
         except Exception as e: self.signals.error.emit(str(e))
     async def check_login(self):
         try:
@@ -206,6 +255,116 @@ class TelegramDownloaderApp(QWidget):
     def update_status(self, text, color="#ffffff"):
         self.signals.single_status.emit(text, color)
         self.signals.bulk_status.emit(text, color)
+        
+    def init_paths(self):
+        self.curr_config_dir, self.settings_file, self.session_file, self.db_file = get_config_paths()
+        # CRITICAL: Ensure the directory exists before SQlite tries to open the DB
+        if not os.path.exists(self.curr_config_dir):
+            os.makedirs(self.curr_config_dir)
+            
+        self.settings = QSettings(self.settings_file, QSettings.Format.IniFormat)
+        self.db = Database(self.db_file)
+        self.api_id = self.settings.value("API_ID", "")
+        self.api_hash = self.settings.value("API_HASH", "")
+        # Inherit credentials from root if missing in profile
+        if not self.api_id:
+            root_cfg = QSettings(os.path.join(CONFIG_DIR, "settings.ini"), QSettings.Format.IniFormat)
+            self.api_id = root_cfg.value("API_ID", "")
+            self.api_hash = root_cfg.value("API_HASH", "")
+            if self.api_id:
+                self.settings.setValue("API_ID", self.api_id)
+                self.settings.setValue("API_HASH", self.api_hash)
+        
+    def refresh_profiles_combo(self):
+        self.prof_combo.blockSignals(True); self.prof_combo.clear()
+        profiles = get_all_profiles()
+        for p in profiles: self.prof_combo.addItem(p, p)
+        
+        active = get_active_profile_name()
+        if not active and profiles:
+            active = profiles[0]; set_active_profile(active)
+            
+        idx = self.prof_combo.findData(active)
+        if idx >= 0: self.prof_combo.setCurrentIndex(idx)
+        self.prof_combo.blockSignals(False)
+
+    def is_any_download_active(self):
+        # Checks if either single or bulk download is currently in progress
+        single_active = self.btn_pause_resume.isEnabled() and not self.is_single_paused
+        return single_active or self.is_bulk_running
+
+    def on_profile_combo_changed(self, idx):
+        if self.is_any_download_active():
+            QMessageBox.warning(self, "Action Blocked", "Cannot switch profiles while a download is active. Please pause or finish first.")
+            self.refresh_profiles_combo() # Revert to previous
+            return
+
+        name = self.prof_combo.itemData(idx)
+        set_active_profile(name)
+        QMessageBox.information(self, "Profile Switched", f"Profile '{name or 'Default'}' is now active.\nThe application will now re-initialize.")
+        self.reinit_app()
+
+    def reinit_app(self):
+        # Stop everything
+        self.is_fetching = False; self.is_bulk_running = False
+        if self.downloader: asyncio.run_coroutine_threadsafe(self.downloader.disconnect(), self.loop)
+        
+        # Reload paths and data
+        self.init_paths()
+        self.load_bulk_list_to_table(); self.load_profiles_to_table()
+        
+        # Start Client
+        self.initialize_client()
+
+    def load_profiles_to_table(self):
+        profiles = get_all_profiles()
+        self.profile_table.setRowCount(len(profiles))
+        for i, p in enumerate(profiles):
+            self.profile_table.setItem(i, 0, QTableWidgetItem(p))
+            self.profile_table.setItem(i, 1, QTableWidgetItem(p))
+            
+            btn_del = QPushButton("Remove"); btn_del.setObjectName("grey_btn")
+            btn_del.clicked.connect(lambda chk, name=p: self.on_remove_profile(name))
+            self.profile_table.setCellWidget(i, 2, btn_del)
+
+    def on_remove_profile(self, name):
+        if self.is_any_download_active():
+            QMessageBox.warning(self, "Action Blocked", "Cannot remove profiles while a download is active.")
+            return
+
+        text, ok = QInputDialog.getText(self, "Confirm Removal", f"To delete profile {name}, type CONFIRM:")
+        if ok and text == "CONFIRM":
+            shutil_path = os.path.join(CONFIG_DIR, name)
+            import shutil; shutil.rmtree(shutil_path)
+            
+            # If deleted the active one, find a replacement
+            if get_active_profile_name() == name:
+                remaining = get_all_profiles()
+                if remaining: set_active_profile(remaining[0])
+                else: set_active_profile(None)
+                
+                self.refresh_profiles_combo()
+                self.reinit_app()
+            else:
+                self.load_profiles_to_table()
+                self.refresh_profiles_combo()
+        elif ok:
+            QMessageBox.warning(self, "Invalid Confirmation", "Profile was NOT deleted. You must type 'CONFIRM' exactly.")
+
+    def on_add_account_click(self):
+        ph, ok = QInputDialog.getText(self, "Add Account", "Enter Phone Number (with +country code):")
+        if ok and ph:
+            clean_p = ph.replace("+", "")
+            p_dir = os.path.join(CONFIG_DIR, clean_p)
+            if not os.path.exists(p_dir): os.makedirs(p_dir)
+            
+            set_active_profile(clean_p)
+            self.refresh_profiles_combo()
+            self.reinit_app()
+
+    async def start_new_login_flow(self, phone):
+        # Deprecated: Handled by reinit_app + standard login flow
+        pass
 
     def update_fetch_button_text(self):
         lk = self.bulk_channel_input.text().strip(); ent, _ = parse_channel_entity(lk)

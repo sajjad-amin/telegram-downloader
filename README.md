@@ -1,71 +1,79 @@
-# 📽️ Premium Telegram Video Downloader (GUI)
+# TG Downloader
 
-A high-performance, cross-platform desktop application designed to capture media from Telegram channels. Features advanced scanning, randomized anti-bot delays, and full download history management.
+A professional Telegram media downloader with support for both GUI and CLI interfaces.
 
-## ✨ Features
+## Features
 
-- **Advanced Scanning Logic**:
-  - Scan **Newer** or **Older** message ranges relative to your current history.
-  - Optional **Start/Resume** pinpointing from cold message IDs or Telegram links.
-  - Automatic channel entity resolution.
-- **Bulk Download Manager**:
-  - **Randomized Anti-Bot Delays**: Configure custom min-max delay windows (e.g., 5-15s) to mimic human behavior and avoid Telegram platform bans.
-  - **Real-time Countdown**: Live UI status bar showing seconds until next file download.
-  - **Graceful Control**: Integrated Pause, Resume, and Stop controls during every phase.
-- **Robust Database Engine**:
-  - SQLite3-backed history ensures you never download the same file twice.
-  - Import/Export bulk lists via JSON for cross-device migration.
-  - Force re-download capability for previously "completed" items.
-- **Premium User Experience**:
-  - **Dynamic Scroll Lock**: Table stays at your current position even as history is updated in the background.
-  - Dark mode by default with optimized font stacks for **macOS**, **Windows**, and **Linux**.
-  - Precise speed calculation (MB/s) and progress tracking.
+- **Double Interface**: GUI (PyQt6) for visual management and CLI for automation.
+- **Multi-Account Profiles**: Manage multiple Telegram accounts. Each profile maintains its own session, settings, and download database.
+- **Resume Support**: Interrupted downloads can be resumed without losing data.
+- **Batch Downloading**: Scan channels or use a `links.txt` file to download multiple files with built-in anti-blocking delays.
+- **Database Tracking**: Keeps a record of download status (completed, pending, failed) to avoid duplicates.
+- **Modern UI**: A sleek, compact dark-mode interface.
 
-## 🚀 Setup & Installation
+## Installation
 
-### 1. Requirements
-- Python 3.9 or higher
-- Telegram API Credentials ([Get them at my.telegram.org](https://my.telegram.org/auth))
+### Prerequisites
+- Python 3.8+
+- [API ID and API Hash](https://my.telegram.org/apps) from Telegram.
 
-### 2. Environment Configuration
-Copy the template and fill in your `API_ID` and `API_HASH`:
-```bash
-cp .env.example .env
-```
+### Setup (Virtual Environment)
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/sajjad-amin/telegram-downloader.git
+   cd telegram-downloader
+   ```
+2. Create and activate a virtual environment:
+   ```bash
+   # Windows
+   python -m venv .venv
+   .venv\Scripts\activate
 
-### 3. Dependency Installation
-Follow the standard Python practices:
-```bash
-# Initialize virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # Mac/Linux
-# .venv\Scripts\activate   # Windows
+   # macOS / Linux
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-# Install required packages
-pip install -r requirements.txt
-```
+## Usage
 
-### 4. Running the Application
+### GUI Mode
+Launch the visual interface:
 ```bash
 python tg_downloader_gui.py
 ```
+- **Profiles**: Switch accounts via the top-right dropdown. Use the "Profiles" tab to add or remove accounts.
+- **Single**: Download a single file via message link.
+- **Bulk**: Scan a channel and download multiple files in batch.
 
-## 📦 Distribution (Build)
-To package the app into a standalone executable (`.app`, `.exe`, or binary) for any platform:
+### CLI Mode
+For command-line operations:
 ```bash
-python build_app.py
+python console.py
+```
+- Run without arguments for help documentation.
+- `python console.py [URL]` to download a single file.
+- `python console.py links.txt` to download links from a text file.
+- `python console.py --profile` to manage account profiles.
+
+## Building Standalone App
+To create a standalone executable for your platform:
+```bash
+python build.py
+```
+- The output can be found in the `dist/` folder.
+- macOS users can generate a `.dmg` installer (requires `create-dmg`).
+```bash
+brew install create-dmg
 ```
 
-## ⚙️ Project Architecture
-- `tg_downloader_gui.py`: Central UI entry and event loop orchestration.
-- `core/`: Client communication, parsing logic, and SQLite database management.
-- `gui/`: Sub-modules for custom signals, workers, and premium dialogs.
-- `build_app.py`: Cross-platform PyInstaller automation script.
+## Configuration
+All data is stored in `~/.telegram_video_downloader/`.
+- `active_profile`: Stores the current active profile reference.
+- Profile subfolders: Each contains its own `my_account.session`, `downloads.db`, and `settings.ini`.
 
-## 🛠 Tech Stack
--   **Telethon 1.x**: High-level Telegram API library.
--   **PyQt6**: Cross-platform GUI framework.
--   **SQLite3**: Persistent download tracking.
-
-## 📄 License
-MIT License. Open-source developed for professional media archiving.
+## License
+MIT

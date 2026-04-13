@@ -22,6 +22,10 @@ class TelegramDownloader:
     async def connect(self):
         await self.client.connect()
 
+    async def disconnect(self):
+        if self.client:
+            await self.client.disconnect()
+
     async def is_authorized(self):
         return await self.client.is_user_authorized()
 
