@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Link2, Play, Pause, Square } from 'lucide-react';
+import { Link2, Play, Pause, Square, X } from 'lucide-react';
 import Modal from './ui/Modal';
 
-const SingleDownload = ({ activeProfile, tasks }) => {
+const SingleDownload = ({ activeProfile, tasks, onRemoveTask }) => {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState({ open: false, title: '', message: '', onConfirm: null });
@@ -107,14 +107,20 @@ const SingleDownload = ({ activeProfile, tasks }) => {
                 <div className="flex-grow min-w-0 pr-2">
                    <p className="text-xs font-medium truncate text-white">{task.text}</p>
                 </div>
-                <div className="flex gap-1.5 flex-shrink-0">
-                   {task.status === 'paused' ? (
-                     <button onClick={() => handleControl('resume', id)} className="p-1.5 hover:text-green-500 rounded transition-all"><Play size={14} fill="currentColor" /></button>
-                   ) : (
-                     <button onClick={() => handleControl('pause', id)} className="p-1.5 hover:text-yellow-500 rounded transition-all"><Pause size={14} fill="currentColor" /></button>
-                   )}
-                   <button onClick={() => handleControl('cancel', id)} className="p-1.5 hover:text-red-500 rounded transition-all"><Square size={14} fill="currentColor" /></button>
-                </div>
+                 <div className="flex gap-1.5 flex-shrink-0">
+                    {['done', 'failed', 'cancelled'].includes(task.status) ? (
+                      <button onClick={() => onRemoveTask && onRemoveTask(id)} className="p-1.5 hover:text-white rounded transition-all text-text-dim" title="Dismiss"><X size={14} /></button>
+                    ) : (
+                      <>
+                        {task.status === 'paused' ? (
+                          <button onClick={() => handleControl('resume', id)} className="p-1.5 hover:text-green-500 rounded transition-all"><Play size={14} fill="currentColor" /></button>
+                        ) : (
+                          <button onClick={() => handleControl('pause', id)} className="p-1.5 hover:text-yellow-500 rounded transition-all"><Pause size={14} fill="currentColor" /></button>
+                        )}
+                        <button onClick={() => handleControl('cancel', id)} className="p-1.5 hover:text-red-500 rounded transition-all"><Square size={14} fill="currentColor" /></button>
+                      </>
+                    )}
+                 </div>
               </div>
               
               <div className="space-y-1">

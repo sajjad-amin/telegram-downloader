@@ -140,6 +140,15 @@ const Dashboard = () => {
     return false;
   };
 
+  const removeTask = (taskId) => {
+    setTasks(prev => {
+      const next = { ...prev };
+      delete next[taskId];
+      return next;
+    });
+    fetch(`/api/tasks/remove/${taskId}`, { method: 'POST' }).catch(() => {});
+  };
+
   return (
     <div className="w-full min-h-screen pb-12 lg:pb-0 px-4 md:px-8 py-6 md:py-10">
       <Modal
@@ -203,8 +212,8 @@ const Dashboard = () => {
         <main className="flex-grow animate-fade">
           <div className="glass-card p-6 md:p-10 min-h-[500px] border-white/5 shadow-3xl">
             <Routes>
-              <Route path="/" element={<SingleDownload activeProfile={activeProfile} tasks={tasks} />} />
-              <Route path="/bulk" element={<BulkDownload activeProfile={activeProfile} tasks={tasks} refreshCounter={refreshCounter} />} />
+              <Route path="/" element={<SingleDownload activeProfile={activeProfile} tasks={tasks} onRemoveTask={removeTask} />} />
+              <Route path="/bulk" element={<BulkDownload activeProfile={activeProfile} tasks={tasks} refreshCounter={refreshCounter} onRemoveTask={removeTask} />} />
               <Route path="/downloads/*" element={<DownloadList />} />
               <Route path="/profiles" element={<ProfileManager profiles={profiles} activeProfile={activeProfile} fetchProfiles={fetchProfiles} />} />
             </Routes>

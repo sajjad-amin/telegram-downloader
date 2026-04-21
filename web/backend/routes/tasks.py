@@ -23,6 +23,13 @@ def clear_tasks():
         del background_tasks[tid]
     return jsonify({"success": True, "cleared": len(to_delete)})
 
+@tasks_bp.route('/remove/<task_id>', methods=['DELETE', 'POST'])
+def remove_task(task_id):
+    if task_id in background_tasks:
+        del background_tasks[task_id]
+        return jsonify({"success": True})
+    return jsonify({"error": "Not found"}), 404
+
 @tasks_bp.route('/control/<action>', methods=['POST'])
 def control_task(action):
     task_id = request.json.get('task_id')
