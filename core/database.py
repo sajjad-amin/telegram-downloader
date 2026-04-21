@@ -90,7 +90,14 @@ class Database:
             return res[0] if res and res[0] else None
 
     def get_items_paged(self, limit=100, offset=0, sort_by='message_id', order='DESC', status_filter=None, type_filter=None):
-        sort_map = {'message_id': 'message_id', 'size': 'file_size', 'status': 'status', 'oldest': 'message_date', 'type': 'file_type'}
+        sort_map = {
+            'message_id': 'message_id', 
+            'size': 'file_size', 
+            'status': 'status', 
+            'date': 'message_date', 
+            'type': 'file_type',
+            'name': 'file_name'
+        }
         sort_col = sort_map.get(sort_by, 'message_id')
         
         query = f"SELECT * FROM downloads WHERE 1=1"

@@ -49,8 +49,8 @@ const SingleDownload = ({ activeProfile, tasks }) => {
     .filter(([id, task]) => {
         const isSingle = id.startsWith('single');
         const matchesProfile = !task.profile || task.profile === activeProfile;
-        const isActive = !['done', 'cancelled', 'failed'].includes(task.status);
-        return isSingle && matchesProfile && isActive;
+        // Keep in list even if finished, Dashboard will clear the state after 5s
+        return isSingle && matchesProfile;
     })
     .reverse();
 

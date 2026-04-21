@@ -118,63 +118,45 @@ class TelegramDownloader:
 
         return file_path
 
-    async def iter_channel_messages(self, entity, min_id=0, max_id=0, limit=None, filter_types=None):
+    async def iter_channel_messages(self, entity, limit=None, min_id=0, max_id=0, filter_types=None):
         """
         Iterates over messages in a channel and yields those matching the filters.
         filter_types: list of strings ('video', 'audio', 'document', 'photo')
         """
-        # Sanitization: Force everything to clean integers. Telethon uses 0 as 'unset'.
-        try:
-            m_min = int(min_id) if min_id is not None else 0
-        except:
-            m_min = 0
-            
-        try:
-            m_max = int(max_id) if max_id is not None else 0
-        except:
-            m_max = 0
-        
-        # In Telethon, if we WANT everything until the end, max_id should be 0 OR min_id should be 0.
-        # To avoid the None > 0 crash in some telethon versions, we pass integers.
-        # If max_id is 0, we'll swap it to None ONLY if min_id is also handled.
-        # ACTUALLY, the safest way is to avoid passing max_id=None if min_id=0.
-        
-        p_max = m_max if m_max > 0 else None
-        p_min = m_min if m_min > 0 else None
-        
-        # Final safety check: never pass one None and one Int if they might be compared.
-        if p_max is None and p_min is None:
-            # Full scan
-            iterator = self.client.iter_messages(entity, limit=limit)
-        elif p_max is None:
-            # Newer scan
-            iterator = self.client.iter_messages(entity, min_id=p_min, limit=limit)
-        elif p_min is None:
-            # Older scan
-            iterator = self.client.iter_messages(entity, max_id=p_max, limit=limit)
-        else:
-            # Range scan
-            iterator = self.client.iter_messages(entity, min_id=p_min, max_id=p_max, limit=limit)
+        m_min = int(min_id) if min_id else 0
+        m_max = int(max_id) if max_id else 0
+
+        iterator = self.client.iter_messages(
+            entity,
+            limit=limit,
+            min_id=m_min,
+            max_id=m_max
+        )
 
         async for message in iterator:
             if not message or not message.media:
                 continue
             
             # Type Detection
-            media_type = 'file'
-            if message.video: media_type = 'video'
-            elif message.audio or message.voice: media_type = 'audio'
-            elif message.photo: media_type = 'photo'
-            elif message.document:
-                mime = (message.document.mime_type or '').lower()
-                if 'video' in mime: media_type = 'video'
-                elif 'audio' in mime: media_type = 'audio'
-                else: media_type = 'file'
+            media_type = self.get_media_type(message)
 
             if filter_types and media_type not in filter_types:
                 continue
             
             yield message, media_type
+
+    def get_media_type(self, message):
+        if not message or not message.media: return None
+        media_type = 'file'
+        if message.video: media_type = 'video'
+        elif message.audio or message.voice: media_type = 'audio'
+        elif message.photo: media_type = 'photo'
+        elif message.document:
+            mime = (message.document.mime_type or '').lower()
+            if 'video' in mime: media_type = 'video'
+            elif 'audio' in mime: media_type = 'audio'
+            else: media_type = 'file'
+        return media_type
 
     def get_extension(self, media):
         if not media: return ""

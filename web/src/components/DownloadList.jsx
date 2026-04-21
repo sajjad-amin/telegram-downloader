@@ -96,13 +96,14 @@ const DownloadList = () => {
     }
   };
 
-  const handleAction = async (dst) => {
+  const handleAction = async (target) => {
     const { action, src } = treeModal;
+    const items = Array.isArray(src) ? src : [src];
     try {
-      await fetch(`/api/downloads/${action}${Array.isArray(src) ? '-bulk' : ''}`, {
+      await fetch(`/api/downloads/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [Array.isArray(src) ? 'paths' : 'src']: src, dst })
+        body: JSON.stringify({ items, target })
       });
       setTreeModal({ open: false, action: '', src: '' });
       fetchFiles();
@@ -152,6 +153,7 @@ const DownloadList = () => {
   };
 
   const handleRename = async () => {
+    if (!renameModal.name) return;
     try {
       await fetch('/api/downloads/rename', {
         method: 'POST',
@@ -159,6 +161,19 @@ const DownloadList = () => {
         body: JSON.stringify({ old_path: renameModal.oldPath, new_name: renameModal.name })
       });
       setRenameModal({ open: false, oldPath: '', name: '' });
+      fetchFiles();
+    } catch (e) { }
+  };
+
+  const handleMkdir = async () => {
+    if (!mkdirModal.name) return;
+    try {
+      await fetch('/api/downloads/mkdir', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ parent: currentPath, name: mkdirModal.name }) 
+      });
+      setMkdirModal({ open: false, name: '' });
       fetchFiles();
     } catch (e) { }
   };
@@ -186,35 +201,29 @@ const DownloadList = () => {
       <MediaModal isOpen={viewModal.open} onClose={() => setViewModal({ open: false, filename: '', type: '', path: '' })} filename={viewModal.path} type={viewModal.type} />
       <TreeModal isOpen={treeModal.open} title={`${treeModal.action === 'move' ? 'Move' : 'Copy'} to...`} onSelect={handleAction} onClose={() => setTreeModal({ open: false, action: '', src: '' })} />
 
-      {mkdirModal.open && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="glass-card w-full max-w-sm p-6">
-            <h3 className="text-xl font-bold text-white mb-4">New Folder</h3>
-            <input autoFocus className="input-field mb-6" value={mkdirModal.name} onChange={(e) => setMkdirModal({ ...mkdirModal, name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && setMkdirModal({ ...mkdirModal, trigger: true })} />
-            <div className="flex justify-end gap-3 font-bold uppercase text-[11px] tracking-widest">
-              <button onClick={() => setMkdirModal({ open: false, name: '' })} className="px-4 py-2 text-text-dim">Cancel</button>
-              <button onClick={async () => {
-                await fetch('/api/downloads/mkdir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parent: currentPath, name: mkdirModal.name }) });
-                setMkdirModal({ open: false, name: '' });
-                fetchFiles();
-              }} className="btn-primary">Create</button>
-            </div>
-          </div>
+      <Modal 
+        isOpen={mkdirModal.open}
+        title="New Folder"
+        message="Enter a name for the new folder:"
+        onConfirm={handleMkdir}
+        onCancel={() => setMkdirModal({ open: false, name: '' })}
+      >
+        <div className="mt-4">
+          <input autoFocus className="input-field" value={mkdirModal.name} onChange={(e) => setMkdirModal({ ...mkdirModal, name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && handleMkdir()} />
         </div>
-      )}
+      </Modal>
 
-      {renameModal.open && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="glass-card w-full max-w-sm p-6">
-            <h3 className="text-xl font-bold text-white mb-4">Rename Item</h3>
-            <input autoFocus className="input-field mb-6" value={renameModal.name} onChange={(e) => setRenameModal({ ...renameModal, name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && handleRename()} />
-            <div className="flex justify-end gap-3 font-bold uppercase text-[11px] tracking-widest">
-              <button onClick={() => setRenameModal({ open: false, oldPath: '', name: '' })} className="px-4 py-2 text-text-dim">Cancel</button>
-              <button onClick={handleRename} className="btn-primary">Save</button>
-            </div>
-          </div>
+      <Modal 
+        isOpen={renameModal.open}
+        title="Rename Item"
+        message={`Enter a new name for "${renameModal.oldPath.split('/').pop()}":`}
+        onConfirm={handleRename}
+        onCancel={() => setRenameModal({ open: false, oldPath: '', name: '' })}
+      >
+        <div className="mt-4">
+          <input autoFocus className="input-field" value={renameModal.name} onChange={(e) => setRenameModal({ ...renameModal, name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && handleRename()} />
         </div>
-      )}
+      </Modal>
 
       {/* Action Menu Backdrop/Sheet */}
       {activeMenu && (
@@ -232,7 +241,7 @@ const DownloadList = () => {
                 <Folder size={18} className="text-primary" /> Open Folder
               </button>
             ) : (
-              <a href={`/api/downloads/${activeMenu.path}`} download className="flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 transition-all">
+              <a href={`/api/downloads/file/${encodeURIComponent(activeMenu.path)}`} download className="flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 transition-all">
                 <Download size={18} className="text-primary" /> Download
               </a>
             )}

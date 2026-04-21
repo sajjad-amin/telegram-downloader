@@ -4,7 +4,7 @@ import { X, Music, Image as ImageIcon } from 'lucide-react';
 const MediaModal = ({ isOpen, onClose, filename, type }) => {
   if (!isOpen) return null;
 
-  const url = `/api/downloads/${filename}?view=true`;
+  const url = `/api/downloads/file/${encodeURIComponent(filename)}?view=true`;
 
   return (
     <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade">
@@ -61,7 +61,7 @@ const MediaModal = ({ isOpen, onClose, filename, type }) => {
              {type} viewer
            </span>
            <a 
-             href={`/api/downloads/${filename}`} 
+             href={`/api/downloads/file/${encodeURIComponent(filename)}`} 
              download
              className="text-xs text-primary hover:underline font-bold tracking-widest uppercase px-4"
            >

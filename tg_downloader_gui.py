@@ -815,4 +815,8 @@ class TelegramDownloaderApp(QWidget):
 
 if __name__ == '__main__':
     if sys.platform == 'darwin': os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-    app = QApplication(sys.argv); window = TelegramDownloaderApp(); window.show(); sys.exit(app.exec())
+    app = QApplication(sys.argv)
+    window = TelegramDownloaderApp()
+    window.resize(1100, 800)
+    window.show()
+    sys.exit(app.exec())

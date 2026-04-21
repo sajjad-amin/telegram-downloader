@@ -6,6 +6,7 @@ import BulkDownload from './BulkDownload';
 import ProfileManager from './ProfileManager';
 import DownloadList from './DownloadList';
 import Modal from './ui/Modal';
+import Toast from './ui/Toast';
 import io from 'socket.io-client';
 
 // Connect to the backend (5001) if we are in dev mode (5173), otherwise use the same origin
@@ -36,24 +37,63 @@ const Dashboard = () => {
   const [activeProfile, setActiveProfile] = useState(localStorage.getItem('selected_profile') || '');
   const [tasks, setTasks] = useState({});
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [refreshCounter, setRefreshCounter] = useState(0);
+  const [toasts, setToasts] = useState([]);
+
+  const showToast = (message, type = 'info') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+  };
 
   useEffect(() => {
     fetchProfiles();
     fetchTasks();
 
-    socket.on('progress', (data) => {
-      setTasks(prev => ({
-        ...prev,
-        [data.task_id]: {
-          progress: data.progress,
-          text: data.text,
-          status: data.status,
-          profile: data.profile
-        }
-      }));
+    socket.on('bulk_item_done', () => {
+      setRefreshCounter(prev => prev + 1);
     });
 
-    return () => socket.off('progress');
+    socket.on('progress', (data) => {
+      setTasks(prev => {
+        const newTasks = {
+          ...prev,
+          [data.task_id]: {
+            progress: data.progress,
+            text: data.text,
+            status: data.status,
+            profile: data.profile
+          }
+        };
+
+        // If task is done, failed, or cancelled, set a timeout to clear it
+        if (['done', 'failed', 'cancelled'].includes(data.status)) {
+          // If it failed, show a toast for specific common errors
+          if (data.status === 'failed' && data.text.includes("No media found")) {
+            showToast("No media found in the pasted link!", "error");
+          } else if (data.status === 'done' && data.task_id.startsWith('single')) {
+            showToast("Single download completed!", "success");
+          }
+
+          // Increase timeout slightly so user sees the "Done" state
+          setTimeout(() => {
+            setTasks(current => {
+              const cleaned = { ...current };
+              delete cleaned[data.task_id];
+              return cleaned;
+            });
+            // Also notify backend to clear it
+            fetch('/api/tasks/clear', { method: 'POST' }).catch(() => {});
+          }, 3000);
+        }
+
+        return newTasks;
+      });
+    });
+
+    return () => {
+      socket.off('progress');
+      socket.off('bulk_item_done');
+    };
   }, []);
 
   useEffect(() => {
@@ -164,13 +204,22 @@ const Dashboard = () => {
           <div className="glass-card p-6 md:p-10 min-h-[500px] border-white/5 shadow-3xl">
             <Routes>
               <Route path="/" element={<SingleDownload activeProfile={activeProfile} tasks={tasks} />} />
-              <Route path="/bulk" element={<BulkDownload activeProfile={activeProfile} tasks={tasks} />} />
+              <Route path="/bulk" element={<BulkDownload activeProfile={activeProfile} tasks={tasks} refreshCounter={refreshCounter} />} />
               <Route path="/downloads/*" element={<DownloadList />} />
               <Route path="/profiles" element={<ProfileManager profiles={profiles} activeProfile={activeProfile} fetchProfiles={fetchProfiles} />} />
             </Routes>
           </div>
         </main>
       </div>
+
+      {toasts.map(toast => (
+        <Toast 
+          key={toast.id} 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToasts(prev => prev.filter(t => t.id !== toast.id))} 
+        />
+      ))}
     </div>
   );
 };
