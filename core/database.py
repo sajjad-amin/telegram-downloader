@@ -72,6 +72,13 @@ class Database:
             conn.execute(f"DELETE FROM downloads WHERE id IN ({placeholders})", item_ids)
             conn.commit()
 
+    def update_items_status(self, item_ids, status):
+        if not item_ids: return
+        with sqlite3.connect(self.db_path) as conn:
+            placeholders = ','.join('?' for _ in item_ids)
+            conn.execute(f"UPDATE downloads SET status = ? WHERE id IN ({placeholders})", [status] + list(item_ids))
+            conn.commit()
+
     def clear_all(self):
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("DELETE FROM downloads")

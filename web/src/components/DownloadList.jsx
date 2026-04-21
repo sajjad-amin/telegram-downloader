@@ -228,8 +228,8 @@ const DownloadList = () => {
       {/* Action Menu Backdrop/Sheet */}
       {activeMenu && (
         <>
-          <div className="fixed inset-0 z-[130] bg-black/40 backdrop-blur-[2px]" onClick={() => setActiveMenu(null)} />
-          <div ref={menuRef} className="fixed bottom-0 left-0 right-0 z-[120] md:absolute md:bottom-auto md:left-auto md:right-0 md:mt-2 md:w-64 glass-card bg-[#16181d] shadow-3xl animate-fade rounded-t-3xl md:rounded-2xl pb-10 md:pb-3 pt-2">
+          <div className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-[2px]" onClick={() => setActiveMenu(null)} />
+          <div ref={menuRef} className="fixed bottom-0 left-0 right-0 z-[200] md:absolute md:bottom-auto md:left-auto md:right-0 md:mt-2 md:w-64 glass-card bg-[#16181d] shadow-3xl animate-fade rounded-t-3xl md:rounded-2xl pb-28 md:pb-3 pt-2">
             <div className="w-12 h-1 bg-white/10 rounded-full mx-auto mb-4 mt-1 md:hidden" />
             <div className="px-6 py-2 mb-2 flex justify-between items-center md:hidden">
               <span className="text-sm font-bold text-white truncate max-w-[200px]">{activeMenu.name}</span>

@@ -171,6 +171,19 @@ const BulkDownload = ({ activeProfile, tasks, refreshCounter, onRemoveTask }) =>
     });
   };
 
+  const handleResetStatus = async () => {
+    if (selectedIds.length === 0) return;
+    try {
+      await fetch('/api/bulk/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile: activeProfile, ids: selectedIds, status: 'pending' })
+      });
+      setSelectedIds([]);
+      fetchItems();
+    } catch (e) { }
+  };
+
   const handleClearDb = () => {
     setModal({
       open: true,
@@ -292,12 +305,20 @@ const BulkDownload = ({ activeProfile, tasks, refreshCounter, onRemoveTask }) =>
             </div>
             <div className="flex items-center gap-3">
               {selectedIds.length > 0 && (
-                <button 
-                  onClick={handleDeleteSelected}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-red-500/20 shadow-lg shadow-red-500/5 animate-fade"
-                >
-                  <Trash2 size={14} /> Delete Selected ({selectedIds.length})
-                </button>
+                <div className="flex items-center gap-2 animate-fade">
+                  <button 
+                    onClick={handleDeleteSelected}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-red-500/20 shadow-lg shadow-red-500/5"
+                  >
+                    <Trash2 size={14} /> Delete ({selectedIds.length})
+                  </button>
+                  <button 
+                    onClick={handleResetStatus}
+                    className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-primary/20 shadow-lg shadow-primary/5"
+                  >
+                    <Clock size={14} /> Reset Status
+                  </button>
+                </div>
               )}
               <div className="flex items-center gap-3 bg-white/5 px-3 py-2 rounded-xl border border-white/5">
                 <Filter size={14} className="text-primary" />

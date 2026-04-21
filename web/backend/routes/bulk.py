@@ -41,6 +41,21 @@ def delete_bulk_items_db():
         db.clear_all()
         return jsonify({"success": True, "cleared": True})
 
+@bulk_bp.route('/status', methods=['POST'])
+def update_bulk_status():
+    data = request.json
+    profile = data.get('profile')
+    ids = data.get('ids', [])
+    status = data.get('status', 'pending')
+    
+    if not profile or not ids: 
+        return jsonify({"error": "Profile and IDs required"}), 400
+        
+    _, _, _, db_file = get_profile_paths(profile)
+    db = Database(db_file)
+    db.update_items_status(ids, status)
+    return jsonify({"success": True, "updated": len(ids)})
+
 @bulk_bp.route('/export/txt', methods=['GET'])
 def export_txt():
     profile = request.args.get('profile')
