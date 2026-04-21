@@ -277,6 +277,7 @@ class TelegramDownloaderApp(QWidget):
             if self.api_id:
                 self.settings.setValue("API_ID", self.api_id)
                 self.settings.setValue("API_HASH", self.api_hash)
+                self.settings.sync()
         
     def refresh_profiles_combo(self):
         self.prof_combo.blockSignals(True); self.prof_combo.clear()
@@ -625,10 +626,16 @@ class TelegramDownloaderApp(QWidget):
                         self.signals.bulk_table_refresh.emit()
                         break
                 except Exception as e:
-                    print(f"Bulk item failed: {it[1]}:{it[2]} - {e}")
+                    import traceback
+                    err_details = f"{str(e)}\n{traceback.format_exc()}"
+                    print(f"Bulk item failed: {it[1]}:{it[2]} - {err_details}")
                     self.db.update_status(it[1], it[2], 'failed')
                     if it[0] in queue: queue.remove(it[0])
                     self.signals.bulk_table_refresh.emit()
+                    # If it's a "File Not Found" or similar OS error, maybe permissions?
+                    if "Permission denied" in str(e):
+                        self.signals.bulk_status.emit(f"Permission Error: {it[5]}", "#ff453a")
+                        break
             
             # If we processed our specific queue, we're done
             if queue: break

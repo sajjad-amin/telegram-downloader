@@ -209,7 +209,12 @@ def login_start():
         future = asyncio.run_coroutine_threadsafe(factory(), loop)
         client, ph_hash = future.result(timeout=25)
         
-        login_sessions[phone] = {"client": client, "phone_code_hash": ph_hash}
+        login_sessions[phone] = {
+            "client": client, 
+            "phone_code_hash": ph_hash,
+            "api_id": final_id,
+            "api_hash": final_hash
+        }
         return jsonify({"success": True, "phone": phone})
     except Exception as e:
         print(f"Login Start Error: {e}")
@@ -247,6 +252,19 @@ def login_verify():
         if res == "NEED_PASS":
             return jsonify({"status": "need_password"})
         
+        # Save credentials to profile-specific settings.ini
+        cd, settings_file, _, _ = get_profile_paths(phone)
+        import configparser
+        config = configparser.ConfigParser()
+        if os.path.exists(settings_file):
+            config.read(settings_file)
+        if 'General' not in config.sections():
+            config.add_section('General')
+        config.set('General', 'API_ID', str(session_data['api_id']))
+        config.set('General', 'API_HASH', str(session_data['api_hash']))
+        with open(settings_file, 'w') as f:
+            config.write(f)
+            
         if phone in login_sessions: del login_sessions[phone]
         return jsonify({"success": True})
     except Exception as e:
@@ -324,6 +342,55 @@ def copy_item():
         else: shutil.copy2(src, dst)
         return jsonify({"success": True})
     except Exception as e: return jsonify({"error": str(e)}), 400
+
+@app.route('/api/downloads/move-bulk', methods=['POST'])
+def move_bulk():
+    data = request.json
+    src_paths = data.get('paths', [])
+    dst_dir = data.get('dst', '')
+    success_count = 0
+    errors = []
+    
+    try:
+        abs_dst_dir = get_safe_path(dst_dir)
+        for rel_src in src_paths:
+            try:
+                abs_src = get_safe_path(rel_src)
+                if os.path.exists(abs_src):
+                    dst_path = os.path.join(abs_dst_dir, os.path.basename(abs_src))
+                    shutil.move(abs_src, dst_path)
+                    success_count += 1
+            except Exception as e:
+                errors.append(str(e))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+            
+    return jsonify({"success": True, "count": success_count, "errors": errors})
+
+@app.route('/api/downloads/copy-bulk', methods=['POST'])
+def copy_bulk():
+    data = request.json
+    src_paths = data.get('paths', [])
+    dst_dir = data.get('dst', '')
+    success_count = 0
+    errors = []
+    
+    try:
+        abs_dst_dir = get_safe_path(dst_dir)
+        for rel_src in src_paths:
+            try:
+                abs_src = get_safe_path(rel_src)
+                if os.path.exists(abs_src):
+                    dst_path = os.path.join(abs_dst_dir, os.path.basename(abs_src))
+                    if os.path.isdir(abs_src): shutil.copytree(abs_src, dst_path)
+                    else: shutil.copy2(abs_src, dst_path)
+                    success_count += 1
+            except Exception as e:
+                errors.append(str(e))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+            
+    return jsonify({"success": True, "count": success_count, "errors": errors})
 
 @app.route('/api/downloads/delete-bulk', methods=['POST'])
 def delete_bulk():

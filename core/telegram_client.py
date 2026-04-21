@@ -53,15 +53,34 @@ class TelegramDownloader:
         """
         # Accurate Total Size Detection
         total_size = 0
-        if message.document: total_size = message.document.size
-        elif message.photo: 
-            # Progressive photos might not have .size directly on the last element
-            largest = message.photo.sizes[-1]
-            total_size = getattr(largest, 'size', 0)
-            if not total_size and hasattr(message.photo, 'large_size'): # Some versions use this
-                total_size = message.photo.large_size
-        elif message.audio: total_size = message.audio.size
-        elif message.video: total_size = message.video.size
+        if message.document: 
+            total_size = message.document.size
+        elif message.photo:
+            # Get the largest size
+            if hasattr(message.photo, 'sizes') and message.photo.sizes:
+                largest = message.photo.sizes[-1]
+                # Some sizes have .size, some have a list of bytes
+                total_size = getattr(largest, 'size', 0)
+                if not total_size and hasattr(largest, 'sizes'): 
+                    total_size = largest.sizes[-1]
+                if not total_size and hasattr(message.photo, 'large_size'):
+                    total_size = message.photo.large_size
+        elif hasattr(message, 'audio') and message.audio:
+            total_size = getattr(message.document, 'size', 0)
+        elif hasattr(message, 'video') and message.video:
+            total_size = getattr(message.document, 'size', 0)
+        
+        # Fallback to general file size if detected via Telethon utils
+        if not total_size and message.file:
+            total_size = message.file.size
+
+        # Fallback if still 0 but media exists
+        if total_size == 0 and message.media:
+            if hasattr(message.media, 'document') and message.media.document:
+                total_size = message.media.document.size
+            elif hasattr(message.media, 'photo') and message.media.photo:
+                try: total_size = message.media.photo.sizes[-1].size
+                except: total_size = 0
         
         downloaded_bytes = 0
         if os.path.exists(file_path):
@@ -75,8 +94,14 @@ class TelegramDownloader:
         # Determine mode: 'ab' if resuming, 'wb' if starting fresh
         mode = 'ab' if downloaded_bytes > 0 else 'wb'
 
+        # Telethon's iter_download works best when passed the specific media object (Photo/Document)
+        # rather than the MessageMedia wrapper in some edge cases.
+        target = message.media 
+        if message.photo: target = message.photo
+        elif message.document: target = message.document
+
         with open(file_path, mode) as f:
-            async for chunk in self.client.iter_download(message.media, offset=downloaded_bytes):
+            async for chunk in self.client.iter_download(target, offset=downloaded_bytes):
                 # Check for cancel
                 if cancel_flag and cancel_flag():
                     break
@@ -152,4 +177,10 @@ class TelegramDownloader:
             yield message, media_type
 
     def get_extension(self, media):
-        return utils.get_extension(media)
+        if not media: return ""
+        ext = utils.get_extension(media)
+        if not ext:
+            if hasattr(media, 'photo') or (hasattr(media, 'sizes') and not hasattr(media, 'document')):
+                return ".jpg" # Default for photos if detection fails
+            return ".bin" # Fallback
+        return ext

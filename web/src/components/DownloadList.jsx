@@ -19,6 +19,7 @@ const DownloadList = () => {
   const [treeModal, setTreeModal] = useState({ open: false, action: '', src: '' });
   const [mkdirModal, setMkdirModal] = useState({ open: false, name: '' });
   const [renameModal, setRenameModal] = useState({ open: false, oldPath: '', name: '' });
+  const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
 
   const menuRef = useRef(null);
 
@@ -39,7 +40,10 @@ const DownloadList = () => {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) setActiveMenu(null);
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setActiveMenu(null);
+        setBulkMenuOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -95,10 +99,10 @@ const DownloadList = () => {
   const handleAction = async (dst) => {
     const { action, src } = treeModal;
     try {
-      await fetch(`/api/downloads/${action}`, {
+      await fetch(`/api/downloads/${action}${Array.isArray(src) ? '-bulk' : ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ src, dst })
+        body: JSON.stringify({ [Array.isArray(src) ? 'paths' : 'src']: src, dst })
       });
       setTreeModal({ open: false, action: '', src: '' });
       fetchFiles();
@@ -261,7 +265,32 @@ const DownloadList = () => {
             </React.Fragment>
           ))}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 relative">
+          {selectedPaths.length > 0 && (
+            <div className="relative">
+              <button 
+                onClick={() => setBulkMenuOpen(!bulkMenuOpen)} 
+                className={`flex items-center gap-2 px-4 h-full glass-card border-primary/50 text-primary hover:text-white hover:bg-primary rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${bulkMenuOpen ? 'bg-primary text-white' : ''}`}
+              >
+                <CheckSquare size={16} /> Actions ({selectedPaths.length})
+              </button>
+              
+              {bulkMenuOpen && (
+                <div ref={menuRef} className="absolute right-0 top-full mt-2 w-56 z-[120] glass-card bg-[#16181d] shadow-3xl rounded-2xl p-2 border border-white/5 animate-fade-in">
+                  <button onClick={() => { setTreeModal({ open: true, action: 'copy', src: selectedPaths }); setBulkMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 rounded-xl transition-all">
+                    <Copy size={16} className="text-primary" /> Copy Selected
+                  </button>
+                  <button onClick={() => { setTreeModal({ open: true, action: 'move', src: selectedPaths }); setBulkMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 rounded-xl transition-all">
+                    <Move size={16} className="text-primary" /> Move Selected
+                  </button>
+                  <div className="h-px bg-white/5 my-1" />
+                  <button onClick={() => { setDeleteModal({ open: true, type: 'bulk', paths: selectedPaths }); setBulkMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-black uppercase text-red-500 hover:bg-red-500/10 rounded-xl transition-all">
+                    <Trash2 size={16} /> Delete All
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           <button onClick={() => setMkdirModal({ open: true, name: '' })} className="p-2.5 glass-card text-text-dim hover:text-white rounded-xl shadow-lg transition-all"><FolderPlus size={18} /></button>
           <button onClick={fetchFiles} disabled={loading} className="p-2.5 glass-card text-text-dim hover:text-white rounded-xl shadow-lg transition-all"><RefreshCw size={18} className={loading ? 'animate-spin' : ''} /></button>
         </div>
@@ -353,23 +382,7 @@ const DownloadList = () => {
           </div>
         )}
 
-        {/* Multi-Delete Bar */}
-        {selectedPaths.length > 0 && !activeMenu && (
-          <div className="fixed bottom-24 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:w-max z-[100] animate-fade">
-            <div className="glass-card bg-primary px-5 py-3 md:px-8 flex items-center justify-between gap-6 shadow-3xl rounded-2xl border-white/20">
-              <div className="flex items-center gap-3 text-white">
-                <div className="bg-white text-primary font-black px-3 py-1.5 rounded-lg text-xs leading-none">{selectedPaths.length}</div>
-                <span className="text-xs font-black uppercase tracking-widest">Selected</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setSelectedPaths([])} className="px-3 py-2 text-white/70 hover:text-white font-black text-[11px] uppercase tracking-widest">Cancel</button>
-                <button onClick={() => setDeleteModal({ open: true, type: 'bulk', paths: selectedPaths })} className="flex items-center gap-2 bg-white text-red-600 px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all">
-                  <Trash2 size={16} /> Delete ALL
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+
       </div>
     </div>
   );
