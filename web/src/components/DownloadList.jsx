@@ -168,10 +168,10 @@ const DownloadList = () => {
   const handleMkdir = async () => {
     if (!mkdirModal.name) return;
     try {
-      await fetch('/api/downloads/mkdir', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ parent: currentPath, name: mkdirModal.name }) 
+      await fetch('/api/downloads/mkdir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent: currentPath, name: mkdirModal.name })
       });
       setMkdirModal({ open: false, name: '' });
       fetchFiles();
@@ -201,7 +201,7 @@ const DownloadList = () => {
       <MediaModal isOpen={viewModal.open} onClose={() => setViewModal({ open: false, filename: '', type: '', path: '' })} filename={viewModal.path} type={viewModal.type} />
       <TreeModal isOpen={treeModal.open} title={`${treeModal.action === 'move' ? 'Move' : 'Copy'} to...`} onSelect={handleAction} onClose={() => setTreeModal({ open: false, action: '', src: '' })} />
 
-      <Modal 
+      <Modal
         isOpen={mkdirModal.open}
         title="New Folder"
         message="Enter a name for the new folder:"
@@ -213,7 +213,7 @@ const DownloadList = () => {
         </div>
       </Modal>
 
-      <Modal 
+      <Modal
         isOpen={renameModal.open}
         title="Rename Item"
         message={`Enter a new name for "${renameModal.oldPath.split('/').pop()}":`}
@@ -228,7 +228,7 @@ const DownloadList = () => {
       {/* Action Menu Backdrop/Sheet */}
       {activeMenu && (
         <>
-          <div className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-[2px]" onClick={() => setActiveMenu(null)} />
+          <div className="fixed inset-0 z-[130] bg-black/40 backdrop-blur-[2px]" onClick={() => setActiveMenu(null)} />
           <div ref={menuRef} className="fixed bottom-0 left-0 right-0 z-[120] md:absolute md:bottom-auto md:left-auto md:right-0 md:mt-2 md:w-64 glass-card bg-[#16181d] shadow-3xl animate-fade rounded-t-3xl md:rounded-2xl pb-10 md:pb-3 pt-2">
             <div className="w-12 h-1 bg-white/10 rounded-full mx-auto mb-4 mt-1 md:hidden" />
             <div className="px-6 py-2 mb-2 flex justify-between items-center md:hidden">
@@ -277,13 +277,13 @@ const DownloadList = () => {
         <div className="flex gap-2 relative">
           {selectedPaths.length > 0 && (
             <div className="relative">
-              <button 
-                onClick={() => setBulkMenuOpen(!bulkMenuOpen)} 
+              <button
+                onClick={() => setBulkMenuOpen(!bulkMenuOpen)}
                 className={`flex items-center gap-2 px-4 h-full glass-card border-primary/50 text-primary hover:text-white hover:bg-primary rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${bulkMenuOpen ? 'bg-primary text-white' : ''}`}
               >
                 <CheckSquare size={16} /> Actions ({selectedPaths.length})
               </button>
-              
+
               {bulkMenuOpen && (
                 <div ref={menuRef} className="absolute right-0 top-full mt-2 w-56 z-[120] glass-card bg-[#16181d] shadow-3xl rounded-2xl p-2 border border-white/5 animate-fade-in">
                   <button onClick={() => { setTreeModal({ open: true, action: 'copy', src: selectedPaths }); setBulkMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[10px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 rounded-xl transition-all">
