@@ -279,15 +279,23 @@ const BulkDownload = ({ activeProfile, tasks, refreshCounter, onRemoveTask }) =>
                     )}
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                    <div className="h-full bg-primary transition-all duration-500 shadow-[0_0_10px_rgba(0,120,212,0.5)]" style={{ width: `${t.progress}%` }}></div>
+                  <div className="space-y-1.5">
+                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                       <div className="h-full bg-primary transition-all duration-500 shadow-[0_0_10px_rgba(0,120,212,0.5)]" style={{ width: `${t.progress}%` }}></div>
+                    </div>
+                    <div className="flex flex-col gap-1 text-[10px] font-bold">
+                       <div className="flex justify-between items-center">
+                          <p className="text-white truncate flex-1 mr-2">{t.text.split(' | ')[0]}</p>
+                          <span className="text-primary">{Math.round(t.progress)}%</span>
+                       </div>
+                       {t.text.includes(' | ') && (
+                         <div className="flex justify-between items-center text-text-dim/80">
+                            <span>{t.text.split(' | ')[1]}</span>
+                            <span>{t.text.split(' | ')[2]}</span>
+                         </div>
+                       )}
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center text-[10px] font-bold">
-                    <p className="text-text-dim truncate flex-1 mr-4">{t.text}</p>
-                    <span className="text-primary">{Math.round(t.progress)}%</span>
-                  </div>
-                </div>
               </div>
             ))}
           </div>

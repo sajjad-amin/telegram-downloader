@@ -168,14 +168,30 @@ async def handle_single(task_id, url, profile):
         filename = f"DL_{m.id}{ext}"
         path = os.path.join(DOWNLOAD_BASE, filename)
         
-        last_emit = 0
+        last_emit = time.time()
+        last_c = 0
         async def cb(c, t):
-            nonlocal last_emit
+            nonlocal last_emit, last_c
             now = time.time()
-            if now - last_emit < 0.5: return
-            last_emit = now
+            dt = now - last_emit
+            if dt < 0.5 and c < t: return
+            
             p = (c/t)*100 if t else 0
-            emit_progress(task_id, p, f"Downloading {filename} ({p:.1f}%)")
+            speed = (c - last_c) / dt if dt > 0 else 0
+            
+            last_emit = now
+            last_c = c
+            
+            # Format sizes and speed
+            c_mb = c / (1024*1024)
+            t_mb = t / (1024*1024)
+            s_mb = speed / (1024*1024)
+            
+            size_text = f"{c_mb:.1f}/{t_mb:.1f} MB"
+            speed_text = f"{s_mb:.2f} MB/s"
+            text = f"Downloading: {filename} | {size_text} | {speed_text}"
+            
+            emit_progress(task_id, p, text)
 
         await downloader.download_media(m, path, progress_callback=cb,
             pause_flag=background_tasks[task_id]['pause_event'].is_set,

@@ -105,7 +105,7 @@ const SingleDownload = ({ activeProfile, tasks, onRemoveTask }) => {
             <div key={id} className="p-3 bg-[#0d0e12] border border-border rounded flex flex-col gap-2 animate-fade">
               <div className="flex justify-between items-start">
                 <div className="flex-grow min-w-0 pr-2">
-                   <p className="text-xs font-medium truncate text-white">{task.text}</p>
+                    <p className="text-xs font-medium truncate text-white">{task.text.split(' | ')[0]}</p>
                 </div>
                  <div className="flex gap-1.5 flex-shrink-0">
                     {['done', 'failed', 'cancelled'].includes(task.status) ? (
@@ -127,9 +127,17 @@ const SingleDownload = ({ activeProfile, tasks, onRemoveTask }) => {
                 <div className="h-1 bg-bg-dark rounded-full overflow-hidden">
                   <div className={`h-full transition-all duration-300 ${task.status === 'paused' ? 'bg-yellow-500' : 'bg-primary'}`} style={{ width: `${task.progress}%` }}></div>
                 </div>
-                <div className="flex justify-between text-[10px] font-bold text-text-dim uppercase">
-                   <span>{task.status}</span>
-                   <span>{Math.round(task.progress)}%</span>
+                <div className="flex flex-col gap-0.5 text-[10px] font-bold text-text-dim uppercase">
+                   <div className="flex justify-between">
+                      <span className={task.status === 'running' ? 'text-primary' : ''}>{task.status}</span>
+                      <span>{Math.round(task.progress)}%</span>
+                   </div>
+                   {task.text.includes(' | ') && (
+                     <div className="flex justify-between normal-case text-[9px] opacity-70">
+                        <span>{task.text.split(' | ')[1]}</span>
+                        <span>{task.text.split(' | ')[2]}</span>
+                     </div>
+                   )}
                 </div>
               </div>
             </div>
