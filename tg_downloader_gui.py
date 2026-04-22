@@ -208,7 +208,7 @@ class TelegramDownloaderApp(QWidget):
         prof_info = QLabel("<h3>Profile Management</h3>Manage multiple Telegram accounts. Each profile maintains its own session, database, and settings.")
         prof_info.setWordWrap(True); prof_layout.addWidget(prof_info)
         
-        self.profile_table = QTableWidget(0, 3); self.profile_table.setHorizontalHeaderLabels(["Account", "Folder", "Action"])
+        self.profile_table = QTableWidget(0, 4); self.profile_table.setHorizontalHeaderLabels(["Name", "Account", "Folder", "Action"])
         self.profile_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         prof_layout.addWidget(self.profile_table)
         
@@ -267,13 +267,14 @@ class TelegramDownloaderApp(QWidget):
             
         self.settings = QSettings(self.settings_file, QSettings.Format.IniFormat)
         self.db = Database(self.db_file)
-        self.api_id = self.settings.value("API_ID", "")
-        self.api_hash = self.settings.value("API_HASH", "")
+        # Check both cases for maximum compatibility
+        self.api_id = self.settings.value("API_ID", self.settings.value("api_id", ""))
+        self.api_hash = self.settings.value("API_HASH", self.settings.value("api_hash", ""))
         # Inherit credentials from root if missing in profile
         if not self.api_id:
             root_cfg = QSettings(os.path.join(CONFIG_DIR, "settings.ini"), QSettings.Format.IniFormat)
-            self.api_id = root_cfg.value("API_ID", "")
-            self.api_hash = root_cfg.value("API_HASH", "")
+            self.api_id = root_cfg.value("API_ID", root_cfg.value("api_id", ""))
+            self.api_hash = root_cfg.value("API_HASH", root_cfg.value("api_hash", ""))
             if self.api_id:
                 self.settings.setValue("API_ID", self.api_id)
                 self.settings.setValue("API_HASH", self.api_hash)
@@ -282,7 +283,12 @@ class TelegramDownloaderApp(QWidget):
     def refresh_profiles_combo(self):
         self.prof_combo.blockSignals(True); self.prof_combo.clear()
         profiles = get_all_profiles()
-        for p in profiles: self.prof_combo.addItem(p, p)
+        for p in profiles:
+            p_dir = os.path.join(CONFIG_DIR, p)
+            p_cfg = QSettings(os.path.join(p_dir, "settings.ini"), QSettings.Format.IniFormat)
+            name = p_cfg.value("ACCOUNT_NAME", p_cfg.value("account_name", ""))
+            label = f"{name} ({p})" if name else p
+            self.prof_combo.addItem(label, p)
         
         active = get_active_profile_name()
         if not active and profiles:
@@ -331,12 +337,31 @@ class TelegramDownloaderApp(QWidget):
         profiles = get_all_profiles()
         self.profile_table.setRowCount(len(profiles))
         for i, p in enumerate(profiles):
-            self.profile_table.setItem(i, 0, QTableWidgetItem(p))
-            self.profile_table.setItem(i, 1, QTableWidgetItem(p))
+            p_dir = os.path.join(CONFIG_DIR, p)
+            p_cfg = QSettings(os.path.join(p_dir, "settings.ini"), QSettings.Format.IniFormat)
+            name = p_cfg.value("ACCOUNT_NAME", p_cfg.value("account_name", ""))
             
+            self.profile_table.setItem(i, 0, QTableWidgetItem(name or "-"))
+            self.profile_table.setItem(i, 1, QTableWidgetItem(f"+{p}"))
+            self.profile_table.setItem(i, 2, QTableWidgetItem(p))
+            
+            act_row = QHBoxLayout(); act_row.setContentsMargins(0, 0, 0, 0); act_row.setSpacing(2)
+            btn_name = QPushButton("Name"); btn_name.clicked.connect(lambda chk, phone=p, old=name: self.on_set_profile_name(phone, old))
             btn_del = QPushButton("Remove"); btn_del.setObjectName("grey_btn")
-            btn_del.clicked.connect(lambda chk, name=p: self.on_remove_profile(name))
-            self.profile_table.setCellWidget(i, 2, btn_del)
+            btn_del.clicked.connect(lambda chk, phone=p: self.on_remove_profile(phone))
+            act_row.addWidget(btn_name); act_row.addWidget(btn_del); 
+            act_w = QWidget(); act_w.setLayout(act_row)
+            self.profile_table.setCellWidget(i, 3, act_w)
+
+    def on_set_profile_name(self, phone, old_name):
+        name, ok = QInputDialog.getText(self, "Profile Name", f"Set name for account +{phone}:", text=old_name)
+        if ok:
+            p_dir = os.path.join(CONFIG_DIR, phone)
+            p_cfg = QSettings(os.path.join(p_dir, "settings.ini"), QSettings.Format.IniFormat)
+            p_cfg.setValue("ACCOUNT_NAME", name.strip())
+            p_cfg.sync()
+            self.load_profiles_to_table()
+            self.refresh_profiles_combo()
 
     def on_remove_profile(self, name):
         if self.is_any_download_active():
