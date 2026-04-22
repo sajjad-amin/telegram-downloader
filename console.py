@@ -212,16 +212,15 @@ async def main():
     parser.add_argument("--add-account", action="store_true", help="Login to a new account")
     args = parser.parse_args()
 
-    # Initialization logic moved inside main to avoid event loop issues
-    curr_config_dir, settings_file, session_file, db_file = get_config_paths()
+    # Use global config and SETTINGS_FILE already initialized at top
+    global config
     
-    config = configparser.ConfigParser()
-    config.optionxform = str 
-    if os.path.exists(settings_file):
-        config.read(settings_file)
-
-    if 'General' not in config.sections():
-        config.add_section('General')
+    # Update global variables if profile was switched
+    global SETTINGS_FILE
+    curr_config_dir, settings_file, session_file, db_file = get_config_paths()
+    SETTINGS_FILE = settings_file
+    if os.path.exists(SETTINGS_FILE):
+        config.read(SETTINGS_FILE)
 
     # API Inheritance
     if not config.get('General', 'api_id', fallback=None):
@@ -242,10 +241,10 @@ async def main():
         api_hash = input("Enter API HASH: ").strip()
         if not api_id or not api_hash:
             print("Error: API ID and Hash are required."); sys.exit(1)
-        config.set('General', 'API_ID', api_id)
-        config.set('General', 'API_HASH', api_hash)
+        config.set('General', 'api_id', api_id)
+        config.set('General', 'api_hash', api_hash)
         if not os.path.exists(curr_config_dir): os.makedirs(curr_config_dir)
-        with open(settings_file, 'w') as f: config.write(f)
+        with open(SETTINGS_FILE, 'w') as f: config.write(f)
 
     # Initialize downloader with active session inside the loop
     downloader = TelegramDownloader(session_file, api_id, api_hash)
@@ -367,7 +366,7 @@ async def main():
             if os.path.isdir(exp) or exp.endswith(os.path.sep): config.set('General', 'last_download_dir_cli', exp)
             elif os.path.sep in exp: config.set('General', 'last_download_dir_cli', os.path.dirname(exp))
         else: config.set('General', 'last_download_dir_cli', dest_dir)
-        with open(settings_file, 'w') as f: config.write(f)
+        with open(SETTINGS_FILE, 'w') as f: config.write(f)
         await download_single(downloader, target, dest_dir, custom_input if custom_input else None)
 
 if __name__ == '__main__':
