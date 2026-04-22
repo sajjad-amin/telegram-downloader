@@ -190,9 +190,9 @@ const Dashboard = () => {
                 {currentProfileObj ? (
                   <>
                     <div className="text-white font-black text-xs md:text-sm truncate">
-                      {currentProfileObj.name || 'Personal Account'}
+                      {currentProfileObj.name || `+${currentProfileObj.phone}`}
                     </div>
-                    <div className="text-text-dim text-[11px] font-bold">+{currentProfileObj.phone}</div>
+                    {currentProfileObj.name && <div className="text-text-dim text-[11px] font-bold">+{currentProfileObj.phone}</div>}
                   </>
                 ) : (
                   <div className="text-white font-black text-xs">Select Profile</div>
@@ -214,9 +214,9 @@ const Dashboard = () => {
                     </div>
                     <div className="min-w-0">
                       <div className={`text-xs font-black truncate ${activeProfile === p.phone ? 'text-primary' : 'text-white'}`}>
-                        {p.name || 'Unnamed'}
+                        {p.name || `+${p.phone}`}
                       </div>
-                      <div className="text-[11px] font-bold text-text-dim">+{p.phone}</div>
+                      {p.name && <div className="text-[11px] font-bold text-text-dim">+{p.phone}</div>}
                     </div>
                   </button>
                 ))}

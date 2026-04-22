@@ -22,7 +22,6 @@ def get_profiles():
         if os.path.exists(settings_file):
             try:
                 config = configparser.ConfigParser()
-                config.optionxform = str
                 config.read(settings_file)
                 name = config.get('General', 'ACCOUNT_NAME', fallback="")
             except: pass
@@ -40,7 +39,6 @@ def set_profile_name():
     _, settings_file, _, _ = get_profile_paths(phone)
     import configparser
     config = configparser.ConfigParser()
-    config.optionxform = str
     if os.path.exists(settings_file):
         config.read(settings_file)
     
@@ -70,9 +68,8 @@ def login_start():
     
     if not phone: return jsonify({"error": "Phone required"}), 400
     
-    # Check both cases for env vars for maximum compatibility
-    final_id = api_id or os.getenv('API_ID') or os.getenv('api_id')
-    final_hash = api_hash or os.getenv('API_HASH') or os.getenv('api_hash')
+    final_id = api_id or os.getenv('API_ID')
+    final_hash = api_hash or os.getenv('API_HASH')
     
     if not final_id or not final_hash:
         return jsonify({"error": "API credentials missing"}), 400
@@ -127,7 +124,6 @@ def login_verify():
         cd, settings_file, _, _ = get_profile_paths(phone)
         import configparser
         config = configparser.ConfigParser()
-        config.optionxform = str
         config['General'] = {'API_ID': str(downloader.api_id), 'API_HASH': downloader.api_hash}
         with open(settings_file, 'w') as f: config.write(f)
         
