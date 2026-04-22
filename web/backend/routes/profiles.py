@@ -13,7 +13,43 @@ def get_profiles():
     if not os.path.exists(CONFIG_DIR): return jsonify([])
     profiles = sorted([d for d in os.listdir(CONFIG_DIR) 
                   if os.path.isdir(os.path.join(CONFIG_DIR, d)) and d.isdigit()])
-    return jsonify(profiles)
+    
+    results = []
+    import configparser
+    for p in profiles:
+        _, settings_file, _, _ = get_profile_paths(p)
+        name = ""
+        if os.path.exists(settings_file):
+            try:
+                config = configparser.ConfigParser()
+                config.read(settings_file)
+                name = config.get('General', 'ACCOUNT_NAME', fallback="")
+            except: pass
+        results.append({"phone": p, "name": name})
+    return jsonify(results)
+
+@profiles_bp.route('/name', methods=['POST'])
+def set_profile_name():
+    data = request.json
+    phone = data.get('phone')
+    name = data.get('name', '').strip()
+    
+    if not phone: return jsonify({"error": "Phone required"}), 400
+    
+    _, settings_file, _, _ = get_profile_paths(phone)
+    import configparser
+    config = configparser.ConfigParser()
+    if os.path.exists(settings_file):
+        config.read(settings_file)
+    
+    if 'General' not in config:
+        config['General'] = {}
+    
+    config['General']['ACCOUNT_NAME'] = name
+    with open(settings_file, 'w') as f:
+        config.write(f)
+        
+    return jsonify({"success": True})
 
 @profiles_bp.route('/<phone>', methods=['DELETE'])
 def delete_profile(phone):

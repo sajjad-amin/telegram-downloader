@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Download, Layers, Users, Folder, LogOut } from 'lucide-react';
+import { Download, Layers, Users, Folder, LogOut, ChevronRight } from 'lucide-react';
 import SingleDownload from './SingleDownload';
 import BulkDownload from './BulkDownload';
 import ProfileManager from './ProfileManager';
@@ -108,7 +108,7 @@ const Dashboard = () => {
       const data = await res.json();
       setProfiles(data);
       if (data.length > 0 && !activeProfile) {
-        setActiveProfile(data[0]);
+        setActiveProfile(data[0].phone);
       }
     } catch (e) { }
   };
@@ -149,6 +149,19 @@ const Dashboard = () => {
     fetch(`/api/tasks/remove/${taskId}`, { method: 'POST' }).catch(() => {});
   };
 
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const currentProfileObj = profiles.find(p => p.phone === activeProfile);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (isProfileMenuOpen && !e.target.closest('.profile-selector')) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isProfileMenuOpen]);
+
   return (
     <div className="w-full min-h-screen pb-12 lg:pb-0 px-2 sm:px-4 md:px-6 py-6 md:py-10">
       <Modal
@@ -165,21 +178,55 @@ const Dashboard = () => {
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="flex flex-1 md:flex-none items-center gap-3 glass-card p-2 px-4 shadow-xl border-primary/10">
-            <Users size={14} className="text-primary" />
-            <select
-              value={activeProfile}
-              onChange={(e) => setActiveProfile(e.target.value)}
-              className="bg-transparent border-none text-white font-bold text-xs md:text-sm outline-none cursor-pointer focus:ring-0 flex-grow"
+          <div className="relative profile-selector flex-1 md:flex-none">
+            <button 
+              onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+              className="w-full md:w-64 flex items-center gap-3 glass-card p-2 px-4 shadow-xl border-primary/10 hover:border-primary/30 transition-all text-left"
             >
-              {profiles.length === 0 && <option value="">No Profile</option>}
-              {profiles.map(p => <option key={p} value={p} className="bg-card-bg">{p}</option>)}
-            </select>
+              <div className="p-2 bg-primary/20 rounded-lg text-primary shrink-0">
+                <Users size={16} />
+              </div>
+              <div className="flex-grow min-w-0">
+                {currentProfileObj ? (
+                  <>
+                    <div className="text-white font-black text-xs md:text-sm truncate">
+                      {currentProfileObj.name || 'Personal Account'}
+                    </div>
+                    <div className="text-text-dim text-[11px] font-bold">+{currentProfileObj.phone}</div>
+                  </>
+                ) : (
+                  <div className="text-white font-black text-xs">Select Profile</div>
+                )}
+              </div>
+              <ChevronRight size={16} className={`text-text-dim transition-transform ${isProfileMenuOpen ? 'rotate-90' : ''}`} />
+            </button>
+
+            {isProfileMenuOpen && (
+              <div className="absolute top-full left-0 right-0 mt-2 z-[150] glass-card bg-[#16181d] shadow-3xl rounded-2xl p-2 border border-white/5 animate-fade-in">
+                {profiles.map(p => (
+                  <button
+                    key={p.phone}
+                    onClick={() => { setActiveProfile(p.phone); setIsProfileMenuOpen(false); }}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeProfile === p.phone ? 'bg-primary/10 border border-primary/20' : 'hover:bg-white/5 border border-transparent'}`}
+                  >
+                    <div className={`p-1.5 rounded-lg ${activeProfile === p.phone ? 'bg-primary text-white' : 'bg-white/5 text-text-dim'}`}>
+                      <Users size={14} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className={`text-xs font-black truncate ${activeProfile === p.phone ? 'text-primary' : 'text-white'}`}>
+                        {p.name || 'Unnamed'}
+                      </div>
+                      <div className="text-[11px] font-bold text-text-dim">+{p.phone}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <button
             onClick={() => setShowLogoutModal(true)}
-            className="p-3 glass-card hover:border-red-500/50 hover:text-red-500 transition-all rounded-xl shadow-xl border-white/5"
+            className="p-3 h-[52px] md:h-[60px] glass-card hover:border-red-500/50 hover:text-red-500 transition-all rounded-xl shadow-xl border-white/5 flex items-center justify-center"
             title="Sign Out"
           >
             <LogOut size={20} />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { File, Download, Trash2, RefreshCw, Eye, Film, Music, Image as ImageIcon, Folder, FolderPlus, Move, Copy, ChevronLeft, ChevronRight, MoreVertical, ArrowUpDown, CheckSquare, Square, Check, X } from 'lucide-react';
+import { File, Download, Trash2, RefreshCw, Eye, Film, Music, Image as ImageIcon, Folder, FolderPlus, Move, Copy, ChevronLeft, ChevronRight, MoreVertical, ArrowUpDown, CheckSquare, Square, Check, X, Edit2, ArrowRight } from 'lucide-react';
 import Modal from './ui/Modal';
 import MediaModal from './ui/MediaModal';
 import TreeModal from './ui/TreeModal';
@@ -225,43 +225,6 @@ const DownloadList = () => {
         </div>
       </Modal>
 
-      {/* Action Menu Backdrop/Sheet */}
-      {activeMenu && (
-        <>
-          <div className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-[2px]" onClick={() => setActiveMenu(null)} />
-          <div ref={menuRef} className="fixed bottom-0 left-0 right-0 z-[200] md:absolute md:bottom-auto md:left-auto md:right-0 md:mt-2 md:w-64 glass-card bg-[#16181d] shadow-3xl animate-fade rounded-t-3xl md:rounded-2xl pb-28 md:pb-3 pt-2">
-            <div className="w-12 h-1 bg-white/10 rounded-full mx-auto mb-4 mt-1 md:hidden" />
-            <div className="px-6 py-2 mb-2 flex justify-between items-center md:hidden">
-              <span className="text-sm font-bold text-white truncate max-w-[200px]">{activeMenu.name}</span>
-              <button onClick={() => setActiveMenu(null)} className="p-1.5 bg-white/5 rounded-full"><X size={18} /></button>
-            </div>
-
-            {activeMenu.is_dir ? (
-              <button onClick={() => { setCurrentPath(activeMenu.path); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 transition-all">
-                <Folder size={18} className="text-primary" /> Open Folder
-              </button>
-            ) : (
-              <a href={`/api/downloads/file/${encodeURIComponent(activeMenu.path)}`} download className="flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 transition-all">
-                <Download size={18} className="text-primary" /> Download
-              </a>
-            )}
-
-            <button onClick={() => { setTreeModal({ open: true, action: 'move', src: activeMenu.path }); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 transition-all">
-              <Move size={18} className="text-primary" /> Move Item
-            </button>
-            <button onClick={() => { setTreeModal({ open: true, action: 'copy', src: activeMenu.path }); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 transition-all">
-              <Copy size={18} className="text-primary" /> Duplicate
-            </button>
-            <button onClick={() => { setRenameModal({ open: true, oldPath: activeMenu.path, name: activeMenu.name }); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 transition-all">
-              <RefreshCw size={18} className="text-primary" /> Rename
-            </button>
-            <div className="h-px bg-white/5 my-2 mx-6 md:mx-4" />
-            <button onClick={() => { setDeleteModal({ open: true, type: 'single', paths: [activeMenu.path] }); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-red-500 hover:bg-red-500/10 transition-all">
-              <Trash2 size={18} /> Delete Permanently
-            </button>
-          </div>
-        </>
-      )}
 
       {/* Header Bars */}
       <div className="flex justify-between items-center gap-4 px-1">
@@ -361,7 +324,7 @@ const DownloadList = () => {
                 <td className="py-3 hidden md:table-cell text-xs font-bold text-text-dim">{item.is_dir ? '--' : formatSize(item.size)}</td>
                 <td className="py-3 hidden lg:table-cell text-[11px] font-black uppercase text-text-dim">{formatDate(item.date)}</td>
                 <td className="py-3 px-4 text-right">
-                  <div className="flex justify-end items-center gap-1">
+                  <div className="flex justify-end items-center gap-1 relative">
                     {isViewable(item) && (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleView(item); }}
@@ -377,6 +340,45 @@ const DownloadList = () => {
                     >
                       <MoreVertical size={20} />
                     </button>
+
+                    {activeMenu?.path === item.path && (
+                      <>
+                        <div className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-[2px]" onClick={(e) => { e.stopPropagation(); setActiveMenu(null); }} />
+                        <div ref={menuRef} className="fixed bottom-0 left-0 right-0 z-[200] md:absolute md:bottom-auto md:left-auto md:right-0 md:top-full md:mt-2 md:w-64 glass-card bg-[#16181d] shadow-3xl animate-fade rounded-t-3xl md:rounded-2xl pb-28 md:pb-3 pt-2">
+                          <div className="w-12 h-1 bg-white/10 rounded-full mx-auto mb-4 mt-1 md:hidden" />
+                          <div className="px-6 py-2 mb-2 flex justify-between items-center md:hidden">
+                            <span className="text-sm font-bold text-white truncate max-w-[200px]">{activeMenu.name}</span>
+                            <button onClick={(e) => { e.stopPropagation(); setActiveMenu(null); }} className="p-1.5 bg-white/5 rounded-full"><X size={18} /></button>
+                          </div>
+
+                          {activeMenu.is_dir ? (
+                            <button onClick={(e) => { e.stopPropagation(); setCurrentPath(activeMenu.path); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 transition-all">
+                              <Folder size={18} className="text-primary" /> Open Folder
+                            </button>
+                          ) : (
+                            <button onClick={(e) => { e.stopPropagation(); handleView(activeMenu); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 transition-all">
+                              <Play size={18} className="text-primary" fill="currentColor" /> Play / View
+                            </button>
+                          )}
+
+                          <button onClick={(e) => { e.stopPropagation(); setRenameModal({ open: true, oldPath: activeMenu.path, name: activeMenu.name }); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 transition-all">
+                            <Edit2 size={18} className="text-primary" /> Rename
+                          </button>
+
+                          <button onClick={(e) => { e.stopPropagation(); setTreeModal({ open: true, action: 'move', src: activeMenu.path }); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 transition-all">
+                            <ArrowRight size={18} className="text-primary" /> Move
+                          </button>
+
+                          <button onClick={(e) => { e.stopPropagation(); setTreeModal({ open: true, action: 'copy', src: activeMenu.path }); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-text-dim hover:text-white hover:bg-white/5 transition-all">
+                            <Copy size={18} className="text-primary" /> Copy
+                          </button>
+
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete(activeMenu.path); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-6 md:px-5 py-4 md:py-3 text-sm md:text-[11px] font-black uppercase text-red-500 hover:bg-red-500/10 transition-all">
+                            <Trash2 size={18} /> Delete
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>

@@ -9,6 +9,7 @@ const ProfileManager = ({ profiles, activeProfile, fetchProfiles }) => {
   const [form, setForm] = useState({ phone: '', code: '', password: '', api_id: '', api_hash: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [nameModal, setNameModal] = useState({ open: false, phone: '', name: '' });
 
   const resetForm = () => {
     setForm({ phone: '', code: '', password: '', api_id: '', api_hash: '' });
@@ -76,6 +77,18 @@ const ProfileManager = ({ profiles, activeProfile, fetchProfiles }) => {
     } catch (e) {}
   };
 
+  const handleSetName = async () => {
+    try {
+      await fetch('/api/profiles/name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: nameModal.phone, name: nameModal.name })
+      });
+      setNameModal({ open: false, phone: '', name: '' });
+      fetchProfiles();
+    } catch (e) {}
+  };
+
   return (
     <div className="space-y-6">
       <Modal 
@@ -86,6 +99,25 @@ const ProfileManager = ({ profiles, activeProfile, fetchProfiles }) => {
         onCancel={() => setDeleteModal({ open: false, phone: '' })}
         danger={true}
       />
+
+      <Modal
+        isOpen={nameModal.open}
+        title="Account Name"
+        message={`Set a friendly name for the account +${nameModal.phone}:`}
+        onConfirm={handleSetName}
+        onCancel={() => setNameModal({ open: false, phone: '', name: '' })}
+      >
+        <div className="mt-4">
+           <input 
+             autoFocus 
+             className="input-field" 
+             placeholder="e.g. Personal Account" 
+             value={nameModal.name} 
+             onChange={(e) => setNameModal({...nameModal, name: e.target.value})}
+             onKeyDown={(e) => e.key === 'Enter' && handleSetName()}
+           />
+        </div>
+      </Modal>
 
       <div className="flex justify-between items-center gap-4">
         <div>
@@ -103,34 +135,47 @@ const ProfileManager = ({ profiles, activeProfile, fetchProfiles }) => {
       </div>
 
       <div className="space-y-3">
-        {profiles.map((phone) => (
-          <div key={phone} className={`glass-card p-4 transition-all border-l-4 ${activeProfile === phone ? 'border-primary bg-primary/5' : 'border-transparent hover:border-white/5'}`}>
+        {profiles.map((p) => (
+          <div key={p.phone} className={`glass-card p-4 transition-all border-l-4 ${activeProfile === p.phone ? 'border-primary bg-primary/5' : 'border-transparent hover:border-white/5'}`}>
             <div className="flex items-center justify-between gap-4">
                <div className="flex items-center gap-4 min-w-0">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${activeProfile === phone ? 'bg-primary text-white shadow-lg' : 'bg-white/5 text-text-dim'}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${activeProfile === p.phone ? 'bg-primary text-white shadow-lg' : 'bg-white/5 text-text-dim'}`}>
                      <Phone size={20} />
                   </div>
                   <div className="min-w-0">
-                     <h3 className="font-bold text-sm md:text-base tracking-tight truncate">+{phone}</h3>
+                     <h3 className="font-bold text-sm md:text-base tracking-tight truncate">
+                       {p.name || `+${p.phone}`}
+                     </h3>
                      <div className="flex items-center gap-2 mt-0.5">
-                        {activeProfile === phone ? (
-                          <span className="text-[9px] font-black uppercase text-primary tracking-widest flex items-center gap-1.5 animate-pulse">
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary" /> Currently Active
+                        {activeProfile === p.phone ? (
+                          <span className="text-[11px] font-black uppercase text-primary tracking-widest flex items-center gap-1.5 animate-pulse">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary" /> {p.name ? `+${p.phone} • Active` : 'Currently Active'}
                           </span>
                         ) : (
-                          <span className="text-[9px] font-black uppercase text-text-dim tracking-widest opacity-40">Standby</span>
+                          <span className="text-[11px] font-black uppercase text-text-dim tracking-widest opacity-40">
+                            {p.name ? `+${p.phone} • Standby` : 'Standby'}
+                          </span>
                         )}
                      </div>
                   </div>
                </div>
 
-               <button 
-                 onClick={() => setDeleteModal({ open: true, phone })}
-                 className="p-3 text-text-dim hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all flex-shrink-0"
-                 title="Delete Profile"
-               >
-                 <Trash2 size={20} />
-               </button>
+               <div className="flex items-center gap-1">
+                  <button 
+                    onClick={() => setNameModal({ open: true, phone: p.phone, name: p.name || '' })}
+                    className="p-3 text-text-dim hover:text-primary hover:bg-primary/10 rounded-xl transition-all flex-shrink-0"
+                    title="Set Account Name"
+                  >
+                    <Settings size={20} />
+                  </button>
+                  <button 
+                    onClick={() => setDeleteModal({ open: true, phone: p.phone })}
+                    className="p-3 text-text-dim hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all flex-shrink-0"
+                    title="Delete Profile"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+               </div>
             </div>
           </div>
         ))}
