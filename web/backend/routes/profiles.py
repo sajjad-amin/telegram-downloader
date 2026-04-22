@@ -23,7 +23,7 @@ def get_profiles():
             try:
                 config = configparser.ConfigParser()
                 config.read(settings_file)
-                name = config.get('General', 'ACCOUNT_NAME', fallback="")
+                name = config.get('General', 'account_name', fallback="")
             except: pass
         results.append({"phone": p, "name": name})
     return jsonify(results)
@@ -45,7 +45,7 @@ def set_profile_name():
     if 'General' not in config:
         config['General'] = {}
     
-    config['General']['ACCOUNT_NAME'] = name
+    config['General']['account_name'] = name
     with open(settings_file, 'w') as f:
         config.write(f)
         
@@ -68,8 +68,8 @@ def login_start():
     
     if not phone: return jsonify({"error": "Phone required"}), 400
     
-    final_id = api_id or os.getenv('API_ID')
-    final_hash = api_hash or os.getenv('API_HASH')
+    final_id = api_id or os.getenv('api_id')
+    final_hash = api_hash or os.getenv('api_hash')
     
     if not final_id or not final_hash:
         return jsonify({"error": "API credentials missing"}), 400
@@ -124,7 +124,7 @@ def login_verify():
         cd, settings_file, _, _ = get_profile_paths(phone)
         import configparser
         config = configparser.ConfigParser()
-        config['General'] = {'API_ID': str(downloader.api_id), 'API_HASH': downloader.api_hash}
+        config['General'] = {'api_id': str(downloader.api_id), 'api_hash': downloader.api_hash}
         with open(settings_file, 'w') as f: config.write(f)
         
         del login_sessions[phone]

@@ -268,16 +268,16 @@ class TelegramDownloaderApp(QWidget):
         self.settings = QSettings(self.settings_file, QSettings.Format.IniFormat)
         self.db = Database(self.db_file)
         # Check both cases for maximum compatibility
-        self.api_id = self.settings.value("API_ID", self.settings.value("api_id", ""))
-        self.api_hash = self.settings.value("API_HASH", self.settings.value("api_hash", ""))
+        self.api_id = self.settings.value("api_id", self.settings.value("api_id", ""))
+        self.api_hash = self.settings.value("api_hash", self.settings.value("api_hash", ""))
         # Inherit credentials from root if missing in profile
         if not self.api_id:
             root_cfg = QSettings(os.path.join(CONFIG_DIR, "settings.ini"), QSettings.Format.IniFormat)
-            self.api_id = root_cfg.value("API_ID", root_cfg.value("api_id", ""))
-            self.api_hash = root_cfg.value("API_HASH", root_cfg.value("api_hash", ""))
+            self.api_id = root_cfg.value("api_id", root_cfg.value("api_id", ""))
+            self.api_hash = root_cfg.value("api_hash", root_cfg.value("api_hash", ""))
             if self.api_id:
-                self.settings.setValue("API_ID", self.api_id)
-                self.settings.setValue("API_HASH", self.api_hash)
+                self.settings.setValue("api_id", self.api_id)
+                self.settings.setValue("api_hash", self.api_hash)
                 self.settings.sync()
         
     def refresh_profiles_combo(self):
@@ -286,7 +286,7 @@ class TelegramDownloaderApp(QWidget):
         for p in profiles:
             p_dir = os.path.join(CONFIG_DIR, p)
             p_cfg = QSettings(os.path.join(p_dir, "settings.ini"), QSettings.Format.IniFormat)
-            name = p_cfg.value("ACCOUNT_NAME", p_cfg.value("account_name", ""))
+            name = p_cfg.value("account_name", p_cfg.value("account_name", ""))
             label = f"{name} ({p})" if name else p
             self.prof_combo.addItem(label, p)
         
@@ -339,7 +339,7 @@ class TelegramDownloaderApp(QWidget):
         for i, p in enumerate(profiles):
             p_dir = os.path.join(CONFIG_DIR, p)
             p_cfg = QSettings(os.path.join(p_dir, "settings.ini"), QSettings.Format.IniFormat)
-            name = p_cfg.value("ACCOUNT_NAME", p_cfg.value("account_name", ""))
+            name = p_cfg.value("account_name", p_cfg.value("account_name", ""))
             
             self.profile_table.setItem(i, 0, QTableWidgetItem(name or "-"))
             self.profile_table.setItem(i, 1, QTableWidgetItem(f"+{p}"))
@@ -358,7 +358,7 @@ class TelegramDownloaderApp(QWidget):
         if ok:
             p_dir = os.path.join(CONFIG_DIR, phone)
             p_cfg = QSettings(os.path.join(p_dir, "settings.ini"), QSettings.Format.IniFormat)
-            p_cfg.setValue("ACCOUNT_NAME", name.strip())
+            p_cfg.setValue("account_name", name.strip())
             p_cfg.sync()
             self.load_profiles_to_table()
             self.refresh_profiles_combo()
@@ -397,8 +397,8 @@ class TelegramDownloaderApp(QWidget):
                 # Pre-seed credentials from current session for convenience
                 if self.api_id and self.api_hash:
                     new_cfg = QSettings(os.path.join(p_dir, "settings.ini"), QSettings.Format.IniFormat)
-                    new_cfg.setValue("API_ID", self.api_id)
-                    new_cfg.setValue("API_HASH", self.api_hash)
+                    new_cfg.setValue("api_id", self.api_id)
+                    new_cfg.setValue("api_hash", self.api_hash)
                     new_cfg.sync()
             
             set_active_profile(clean_p)
@@ -830,7 +830,7 @@ class TelegramDownloaderApp(QWidget):
         if d.exec() == QDialog.DialogCode.Accepted:
             aid, ah = d.get_credentials()
             # Save to current profile
-            self.settings.setValue("API_ID", aid); self.settings.setValue("API_HASH", ah)
+            self.settings.setValue("api_id", aid); self.settings.setValue("api_hash", ah)
             self.settings.sync()
             
             # Update local memory

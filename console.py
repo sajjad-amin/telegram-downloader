@@ -99,16 +99,16 @@ if 'General' not in config.sections():
     config.add_section('General')
 
 # API Inheritance
-if not config.get('General', 'API_ID', fallback=None):
+if not config.get('General', 'api_id', fallback=None):
     root_settings = os.path.join(CONFIG_DIR, "settings.ini")
     if os.path.exists(root_settings) and root_settings != SETTINGS_FILE:
         tmp_cfg = configparser.ConfigParser(); tmp_cfg.read(root_settings)
-        aid = tmp_cfg.get('General', 'API_ID', fallback=None)
-        ahash = tmp_cfg.get('General', 'API_HASH', fallback=None)
-        if aid and ahash: config.set('General', 'API_ID', aid); config.set('General', 'API_HASH', ahash)
+        aid = tmp_cfg.get('General', 'api_id', fallback=None)
+        ahash = tmp_cfg.get('General', 'api_hash', fallback=None)
+        if aid and ahash: config.set('General', 'api_id', aid); config.set('General', 'api_hash', ahash)
 
-api_id = config.get('General', 'API_ID', fallback=None)
-api_hash = config.get('General', 'API_HASH', fallback=None)
+api_id = config.get('General', 'api_id', fallback=None)
+api_hash = config.get('General', 'api_hash', fallback=None)
 
 if not api_id or not api_hash:
     print("=== Telegram Downloader Setup ===")
@@ -117,8 +117,8 @@ if not api_id or not api_hash:
     api_hash = input("Enter API HASH: ").strip()
     if not api_id or not api_hash:
         print("Error: API ID and Hash are required."); sys.exit(1)
-    config.set('General', 'API_ID', api_id)
-    config.set('General', 'API_HASH', api_hash)
+    config.set('General', 'api_id', api_id)
+    config.set('General', 'api_hash', api_hash)
     if not os.path.exists(CURRENT_CONFIG_DIR): os.makedirs(CURRENT_CONFIG_DIR)
     with open(SETTINGS_FILE, 'w') as f: config.write(f)
 
@@ -224,16 +224,16 @@ async def main():
         config.add_section('General')
 
     # API Inheritance
-    if not config.get('General', 'API_ID', fallback=None):
+    if not config.get('General', 'api_id', fallback=None):
         root_settings = os.path.join(CONFIG_DIR, "settings.ini")
         if os.path.exists(root_settings) and root_settings != settings_file:
             tmp_cfg = configparser.ConfigParser(); tmp_cfg.read(root_settings)
-            aid = tmp_cfg.get('General', 'API_ID', fallback=None)
-            ahash = tmp_cfg.get('General', 'API_HASH', fallback=None)
-            if aid and ahash: config.set('General', 'API_ID', aid); config.set('General', 'API_HASH', ahash)
+            aid = tmp_cfg.get('General', 'api_id', fallback=None)
+            ahash = tmp_cfg.get('General', 'api_hash', fallback=None)
+            if aid and ahash: config.set('General', 'api_id', aid); config.set('General', 'api_hash', ahash)
 
-    api_id = config.get('General', 'API_ID', fallback=None)
-    api_hash = config.get('General', 'API_HASH', fallback=None)
+    api_id = config.get('General', 'api_id', fallback=None)
+    api_hash = config.get('General', 'api_hash', fallback=None)
 
     if not api_id or not api_hash:
         print("=== Telegram Downloader Setup ===")
