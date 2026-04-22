@@ -150,7 +150,7 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="w-full min-h-screen pb-12 lg:pb-0 px-4 md:px-8 py-6 md:py-10">
+    <div className="w-full min-h-screen pb-12 lg:pb-0 px-2 sm:px-4 md:px-6 py-6 md:py-10">
       <Modal
         isOpen={showLogoutModal}
         title="Logout"
@@ -189,7 +189,7 @@ const Dashboard = () => {
 
       <div className="flex flex-col md:flex-row gap-8 lg:gap-12">
         {/* Navigation Sidebar / Bottom Bar on Mobile */}
-        <aside className="fixed bottom-0 left-0 right-0 z-50 md:relative md:w-60 flex-shrink-0">
+        <aside className="fixed bottom-0 left-0 right-0 z-50 md:relative md:w-44 flex-shrink-0">
           <nav className="flex md:flex-col gap-1 p-2 md:p-0 backdrop-blur-xl bg-bg-dark/80 md:bg-transparent border-t md:border-none border-white/10">
             {TABS.map(tab => (
               <Link

@@ -245,7 +245,7 @@ const BulkDownload = ({ activeProfile, tasks, refreshCounter, onRemoveTask }) =>
       />
 
       {/* Left Column: List and Progress */}
-      <div className="w-full lg:w-2/3 space-y-8 order-2 lg:order-1">
+      <div className="w-full lg:w-3/4 space-y-8 order-2 lg:order-1">
         {progressTasks.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {progressTasks.map(([id, t]) => (
@@ -341,7 +341,7 @@ const BulkDownload = ({ activeProfile, tasks, refreshCounter, onRemoveTask }) =>
 
           <div className="glass-card overflow-hidden border-white/5 shadow-2xl">
             <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full text-left border-collapse min-w-[700px]">
+              <table className="w-full text-left border-collapse min-w-[600px]">
                 <thead>
                   <tr className="bg-white/5 border-b border-white/5">
                     <th className="p-4 w-10">
@@ -386,7 +386,7 @@ const BulkDownload = ({ activeProfile, tasks, refreshCounter, onRemoveTask }) =>
       </div>
 
       {/* Right Column: Control Center */}
-      <div className="w-full lg:w-1/3 space-y-6 order-1 lg:order-2 lg:sticky lg:top-10">
+      <div className="w-full lg:w-1/4 space-y-6 order-1 lg:order-2 lg:sticky lg:top-10">
         <div className="glass-card p-6 border-primary/20 space-y-6 shadow-3xl bg-[#0d0e12]/80 backdrop-blur-xl">
           <h3 className="text-xl font-black text-white flex items-center gap-3"><Database size={20} className="text-primary" /> Control Center</h3>
           <div className="space-y-4">
